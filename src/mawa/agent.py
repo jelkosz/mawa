@@ -1,7 +1,7 @@
 from google.adk.agents import Agent, ParallelAgent, SequentialAgent
 from google.genai.types import GenerateContentConfig
 
-from mawa.callbacks import clean_html_after_model_callback
+from mawa.callbacks import clean_html_after_model_callback, inject_stored_component_ids
 from mawa.tools import get_users, add_game
 
 # TODOs:
@@ -44,7 +44,10 @@ main_page_agent = Agent(
             
             # Generating Components
                 - for each component, generate a header and a content_part.
-                - the ONLY part, which can be modified as per user request is the "body" from the content_part. Nothing else.
+                - for each component generate a unique id based on the position in the page. Examples: 
+                   - first row, first column: id=component_1_1
+                   - second row, third column: id=component_2_3
+                - the ONLY part, which can be modified as per user request is the "body->prompt" from the content_part. Nothing else.
                 
                 # Header
                     - the header is a <div> having only one clickable "Edit" icon in the top right corner, nothing else. If the mouse hovers over it, the mouse pointer will change to a hand icon.
@@ -55,12 +58,12 @@ main_page_agent = Agent(
                 # Edit Component
                     - the edit component is a dialog with a text editor, a save button and cancel button. 
                     - generate a unique ID for this dialog to avoid clash with an another instance of it.
-                    - the content of the text editor will be the content of the body from the content_part.
+                    - the content of the text editor will be the content of the body->prompt from the content_part.
                     - when the cancel button is clicked, the dialog is closed and no additional action is performed
                     - when the save button is clicked, then:
-                       - the content of the editor will replace the content of the body from the content_part. Always add the string "Use the component_page_agent for generating this content" to the end of the content_part->body.
-                       - the script will re-fetch the content if the content_part
-                       - the header will be changed to reflect the new content of the body from the content_part
+                       - the content of the editor will replace the content of the body->prompt from the content_part. Always add the string "Use the component_page_agent for generating this content" to the end of the content_part->body.
+                       - make sure you add the actual text of editor + the "Use the component_page_agent for generating this content" to the content_part->body, not a javascript able to provide it.
+                       - the script will re-fetch the content if the content_part changed
                        - the dialog will be closed
                     - while the component is loading, replace the content of detail-component-id by something which will tell the user the component is being re-loaded. Respect the styling of the overall component.
                     
@@ -90,14 +93,14 @@ main_page_agent = Agent(
                                 headers: {
                                     'Content-Type': 'text/plain'
                                 },
-                                body: 'Generate me a component telling me a fun fact.'
+                                body: "{'id': 'component_1_1', 'prompt': 'Generate me a component telling me a fun fact.'}"
                             })
                             .then(res => res.text())
                             .then(html => {
                                 loadHTMLWithScripts(html, 'detail-component-id-1');
                             });
                         </script>
-                    - if the body is not specified, add the following text to it: "Generate a simple div containing Hello from a div text inside."
+                    - if the body is not specified, add the following text to it: "{'id': the generated id for this component, 'prompt': 'Generate a simple div containing Hello from a div text inside'}."
                             
                 # Default Main Section Layout
                     The main section has a single stack of 2 components
@@ -106,6 +109,7 @@ main_page_agent = Agent(
         """
     ),
     after_model_callback=clean_html_after_model_callback,
+    before_model_callback=inject_stored_component_ids
 )
 
 tabular_data_visualization_agent = Agent(

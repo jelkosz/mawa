@@ -1,7 +1,8 @@
 from typing import Optional
 
 from google.adk.agents.callback_context import CallbackContext
-from google.adk.models import LlmResponse
+from google.adk.models import LlmResponse, LlmRequest
+
 
 # todo add clear ```json too
 def clean_html_after_model_callback(
@@ -23,3 +24,12 @@ def clean_html_after_model_callback(
             cleaned_text = cleaned_text[:-len("```")]
         part.text = cleaned_text
     return cleaned_response
+
+
+def inject_stored_component_ids(
+    callback_context: CallbackContext, llm_request: LlmRequest
+) -> Optional[LlmResponse]:
+    # todo add the instructions to use the data prompts from the state
+    # instructions here:
+    # https://google.github.io/adk-docs/callbacks/types-of-callbacks/#before-model-callback
+    return None
