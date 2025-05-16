@@ -2,7 +2,7 @@ import ast
 import time
 
 from google.adk.events import Event, EventActions
-from google.adk.sessions import InMemorySessionService, Session
+from google.adk.sessions import InMemorySessionService, Session, State
 from google.adk.runners import Runner
 from google.genai import types
 from .agent import root_agent
@@ -35,7 +35,7 @@ def maybe_store_user_prompt(prompt: str, session: Session):
         if isinstance(data, dict) and 'id' in data and 'prompt' in data:
             current_time = time.time()
             state_changes = {
-                f"user:{data['id']}": data['prompt']
+                f"{State.USER_PREFIX}{data['id']}": data['prompt']
             }
             actions_with_update = EventActions(state_delta=state_changes)
             system_event = Event(

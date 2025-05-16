@@ -103,14 +103,16 @@ main_page_agent = Agent(
                     - if the body is not specified, add the following text to it: "{'id': the generated id for this component, 'prompt': 'Generate a simple div containing Hello from a div text inside'}."
                             
                 # Default Main Section Layout
-                    The main section has a single stack of 2 components
-                        - the first component has a body: "Generate me a component with a table of all users from the brno league and their scores. To the bottom left corner of this component, add an add button."
-                        - the second component has a body: "Generate me a component with a fun fact about cats."
+                    Refer to the "Instructions Provided by Users Per Component" section, to get the default body values per component ID. If this section is not present, use the following defaults:
+                    The main section has a single stack of 1 component                        
+                        - the component has a body: "Generate me a component with a fun fact about cats."
         """
     ),
     after_model_callback=clean_html_after_model_callback,
     before_model_callback=inject_stored_component_ids
 )
+
+# - the first component has a body: "Generate me a component with a table of all users from the brno league and their scores. To the bottom left corner of this component, add an add button."
 
 tabular_data_visualization_agent = Agent(
     name="tabular_data_visualization_agent",
