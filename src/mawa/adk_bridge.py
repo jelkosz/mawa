@@ -5,14 +5,18 @@ from google.adk.events import Event, EventActions
 from google.adk.sessions import InMemorySessionService, Session, State
 from google.adk.runners import Runner
 from google.genai import types
-from .agent import root_agent
+from pyasn1.type.univ import Boolean
+
+from .agent import main_agent
 import uuid
+
+from .cache import store_to_cache
 
 session_service = InMemorySessionService()
 APP_NAME = "Fotbalek App"
 
 runner = Runner(
-    agent=root_agent,
+    agent=main_agent,
     app_name=APP_NAME,
     session_service=session_service
 )
@@ -51,6 +55,8 @@ def maybe_store_user_prompt(prompt: str, session: Session):
     except (ValueError, SyntaxError, TypeError):
         return prompt
 
+def is_cache_hit(event: Event) -> bool:
+    return isinstance(event.custom_metadata, dict) and 'cache_response' in event.custom_metadata and event.custom_metadata['cache_response'] == True
 
 async def call_adk(user_id, prompt):
     session_id = str(uuid.uuid4())
@@ -70,8 +76,8 @@ async def call_adk(user_id, prompt):
             f"  [Event] Author: {event.author}, Type: {type(event).__name__}, Final: {event.is_final_response()}, Branch: {event.branch}, Content: {event.content}")
 
         # todo remove the hardcoded list of returning agents
-        if event.is_final_response() and event.author in ["component_page_merger_agent", "main_page_agent",
-                                                          "data_saver_agent"]:
+        if event.is_final_response() and (is_cache_hit(event) or event.author in ["component_page_merger_agent", "main_page_agent",
+                                                          "data_saver_agent"]):
             if event.content and event.content.parts:
                 final_response_text = event.content.parts[0].text
             elif event.actions and event.actions.escalate:
@@ -80,4 +86,9 @@ async def call_adk(user_id, prompt):
 
     print(f"<<< Agent Response: {final_response_text}")
     print(f"Runner created for agent '{runner.agent.name}'.")
+
+    # todo null checks
+    cache_decision_agent_output = session_service.get_session(app_name=  APP_NAME, user_id= user_id, session_id= session_id).state.get('cache_decision_agent_output').strip('\n')
+    if cache_decision_agent_output == 'CACHE':
+        store_to_cache(prompt, final_response_text)
     return final_response_text

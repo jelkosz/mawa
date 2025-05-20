@@ -1,7 +1,7 @@
 from google.adk.agents import Agent, ParallelAgent, SequentialAgent
 from google.genai.types import GenerateContentConfig
 
-from mawa.callbacks import clean_html_after_model_callback, inject_stored_component_ids
+from mawa.callbacks import clear_html_response, inject_stored_component_ids, load_from_cache
 from mawa.tools import get_users, add_game
 
 # TODOs:
@@ -108,8 +108,8 @@ main_page_agent = Agent(
                         - the component has a body: "Generate me a component with a fun fact about cats."
         """
     ),
-    after_model_callback=clean_html_after_model_callback,
-    before_model_callback=inject_stored_component_ids
+    before_model_callback=inject_stored_component_ids,
+    after_model_callback=clear_html_response,
 )
 
 # - the first component has a body: "Generate me a component with a table of all users from the brno league and their scores. To the bottom left corner of this component, add an add button."
@@ -133,7 +133,7 @@ tabular_data_visualization_agent = Agent(
                 - if the information you need is not available using any tools, inform the user politely that the information is not available.
         """
     ),
-    after_model_callback=clean_html_after_model_callback,
+    after_model_callback=clear_html_response,
     tools=[get_users],
     output_key="tabular_data_visualization_agent_output"
 )
@@ -173,7 +173,7 @@ add_data_agent = Agent(
                 - After this, a json will continue with the data. The json will encode all the data from the dialog form.
         """
     ),
-    after_model_callback=clean_html_after_model_callback,
+    after_model_callback=clear_html_response,
     output_key="add_data_agent_output"
 )
 
@@ -200,7 +200,7 @@ component_page_merger_agent = Agent(
                 - If the request did not contain any of the two above requests, ignore the output from the previous agents and generate your output directly.
         """
     ),
-    after_model_callback=clean_html_after_model_callback,
+    after_model_callback=clear_html_response,
 )
 
 component_parallel_sub_agents = ParallelAgent(
@@ -272,4 +272,30 @@ root_agent = Agent(
         component_page_agent,
         data_saver_agent,
     ],
+    before_model_callback=load_from_cache,
+)
+
+cache_decision_agent = Agent(
+    name="cache_decision_agent",
+    model="gemini-2.0-flash-lite",
+    description=(
+        "Agent deciding, if the result should be stored to cache / loaded from cache or calculated live"
+    ),
+    instruction=(
+        """
+        You are an agent inspecting the user prompt and deciding, if the result can be loaded from cache or it needs to be calculated.
+        You decide based on what the user request is asking for. If the user request is to load / store or edit data, the result is LIVE.
+        If the user request is to render a page/component, the result is CACHE.
+        Always respect the user's will. If the user explicitly asks for the date to be always calculated, dont recommend loading from cache, return LIVE.
+        Similarly, if the user explicitly asks for the data to be cached, always return CACHE 
+        There are no other possible outputs, always return either LIVE or CACHE.
+        """
+    ),
+    output_key="cache_decision_agent_output"
+)
+
+main_agent = SequentialAgent(
+    name="main_agent",
+    sub_agents=[cache_decision_agent, root_agent],
+    description="Decides if to return the result from cache or live. Than proceeds to load or calculate the result."
 )

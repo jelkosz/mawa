@@ -3,10 +3,46 @@ from typing import Optional
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models import LlmResponse, LlmRequest
 from google.genai.types import Content, Part
+from typing_extensions import final
+
+from mawa.cache import is_cached, get_from_cache
+
+
+def load_from_cache(
+    callback_context: CallbackContext, llm_request: LlmRequest
+) -> Optional[LlmResponse]:
+    cache_decision_agent_output = callback_context.state.get('cache_decision_agent_output').strip('\n')
+    if cache_decision_agent_output == 'CACHE':
+        key = callback_context.user_content.parts[0].text
+        if is_cached(key):
+            cache_response = LlmResponse(
+                content=Content(
+                    role="model",
+                    parts=[Part(text=get_from_cache(key))],
+                )
+            )
+            cache_response.custom_metadata = {'cache_response': True}
+            return cache_response
+    return None
+
+    # callback_context.state
+    # if "BLOCK" in last_user_message.upper():
+    #     print("[Callback] 'BLOCK' keyword found. Skipping LLM call.")
+    #     # Return an LlmResponse to skip the actual LLM call
+    #     return LlmResponse(
+    #         content=types.Content(
+    #             role="model",
+    #             parts=[types.Part(text="LLM call was blocked by before_model_callback.")],
+    #         )
+    #     )
+    # else:
+    #     print("[Callback] Proceeding with LLM call.")
+    #     # Return None to allow the (modified) request to go to the LLM
+    #     return None
 
 
 # todo add clear ```json too
-def clean_html_after_model_callback(
+def clear_html_response(
     callback_context: CallbackContext,
     llm_response: LlmResponse,
 ) -> Optional[LlmResponse]:
