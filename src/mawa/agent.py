@@ -18,7 +18,6 @@ COMMON_HTML_AGENT_PROMPT = """
         - your output will be directly interpreted by a browser so dont include any explanation or any additional text around the HTML content.
         - do add additional details like styling and additional contents based on the user prompt.
         - by default, respect the styling of the page this component is embedded in.
-        - never add any <script> tags into the component. If you need additional data, always use tools to load them.
 """
 
 main_page_agent = Agent(
@@ -104,8 +103,9 @@ main_page_agent = Agent(
                             
                 # Default Main Section Layout
                     Refer to the "Instructions Provided by Users Per Component" section, to get the default body values per component ID. If this section is not present, use the following defaults:
-                    The main section has a single stack of 1 component                        
-                        - the component has a body: "Generate me a component with a fun fact about cats."
+                    The main section has a single stack of 1 component
+                        - the first component has a body: "Generate me a component with a table of all users from the brno league and their scores. To the bottom left corner of this component, add an add button."                        
+                        
         """
     ),
     before_model_callback=inject_stored_component_ids,
@@ -113,6 +113,50 @@ main_page_agent = Agent(
 )
 
 # - the first component has a body: "Generate me a component with a table of all users from the brno league and their scores. To the bottom left corner of this component, add an add button."
+# - the component has a body: "Generate me a component with a fun fact about cats."
+
+data_loader_agent = Agent(
+    name="data_loader_agent",
+    model="gemini-2.0-flash-lite",
+    generate_content_config=GenerateContentConfig(
+        temperature=0,
+    ),
+    description=(
+        "Agent loading data from a datasource."
+    ),
+    instruction=(
+        """
+            You are a specialized agent designed to load data using available tools.
+
+            **Available Tools:** `[get_users]`
+            
+            **Input Format:**
+            Your input will always be a JSON object with the following structure:
+            
+            {
+                "request": "load data",
+                "source": "users_database",
+                "format": "JSON",
+                "output_format": 
+                [
+                    {
+                        "name": "userName1",
+                        "age": "userAge1"
+                    },
+                    {
+                        "name": "userName2",
+                        "age": "userAge2"
+                    },
+                ]
+            }
+            
+            **Output Format:**
+            Your output will always be a JSON array with the structure following the output_format from the input.:
+        """
+    ),
+    after_model_callback=clear_html_response,
+    tools=[get_users],
+)
 
 tabular_data_visualization_agent = Agent(
     name="tabular_data_visualization_agent",
@@ -124,17 +168,49 @@ tabular_data_visualization_agent = Agent(
         "Agent to generate an HTML table with data."
     ),
     instruction=(
-        f"""
-            You are an agent which generates an HTML table with content loaded using tools. The list of tools available to you are [get_users].
-            If there is no request to generate a table, return NO_TABULAR_DATA.
-            {COMMON_HTML_AGENT_PROMPT}
-                - always use the a tool to load data. Use this data directly in your output, never try to generate anything which will be calling an API endpoint to load them.
-                - if the tool returns an error, inform the user politely.
-                - if the information you need is not available using any tools, inform the user politely that the information is not available.
+        """
+            You are a specialized agent designed to generate nicely formatted HTML tables.
+
+            **Output Format:**
+            * Your output MUST be raw HTML, directly renderable by a web browser.
+            * DO NOT include any conversational text, explanations, or extraneous characters outside the HTML structure.
+            * If no table generation is requested, return the literal string `NO_TABULAR_DATA`.
+            
+            **Table Generation Rules:**
+            * **Styling:**
+                * By default, inherit styling from the embedding webpage.
+                * Incorporate additional styling (e.g., colors, fonts, borders) and content (e.g., headers, footers, captions) as explicitly requested by the user.
+            * **Data Loading:**
+                * Data MUST be loaded asynchronously via a `POST` request to the `/api` endpoint. 
+                * Generate a <script> tag which uses XHR to load the data.
+                * Make sure this script will load call the server right after this component is done rendering. 
+                * Add a reload button. If clicked, the same server call will be executed loading the data again.
+                * The `POST` request body MUST be a JSON object specifying:
+                    * `request`: "load data",
+                    * `source`: (string) The origin or identifier of the data.
+                    * `format`: (string) The desired data format (e.g., 'JSON', 'CSV').
+                    * `output_format`: (object) The output structure the table generated by you can process. For instance, to get a list of users, the structure would be `[{'name': 'userName', 'age': 'userAge'}]`.
+                * While data is loading, display a prominent loading indicator within the table structure.
+            
+            **Example Request Body for Data Loading:**
+            {
+                "request": "load data",
+                "source": "users_database",
+                "format": "JSON",
+                "output_format": [
+                    {
+                        "name": "userName1",
+                        "age": "userAge1"
+                    },
+                    {
+                        "name": "userName2",
+                        "age": "userAge2"
+                    },
+                ]
+            }
         """
     ),
     after_model_callback=clear_html_response,
-    tools=[get_users],
     output_key="tabular_data_visualization_agent_output"
 )
 
@@ -270,6 +346,7 @@ root_agent = Agent(
     sub_agents=[
         main_page_agent,
         component_page_agent,
+        data_loader_agent,
         data_saver_agent,
     ],
     before_model_callback=load_from_cache,

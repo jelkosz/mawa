@@ -22,25 +22,47 @@ def load_from_cache(
             return cache_response
     return None
 
-# todo add clear ```json too
 def clear_html_response(
     callback_context: CallbackContext,
     llm_response: LlmResponse,
 ) -> Optional[LlmResponse]:
     cleaned_response = llm_response.model_copy(deep=True)
-    if cleaned_response.content is None:
-        return None
+    return clean_response_parts(cleaned_response)
 
+
+def clean_response_parts(cleaned_response):
+    """
+    Cleans the text content of each part in a response by:
+    1. Stripping leading/trailing whitespace.
+    2. Removing common code block delimiters (```html, ```json, ```).
+
+    Args:
+        cleaned_response: An object with a 'content' attribute, which in turn
+                          has a 'parts' attribute (an iterable of objects
+                          each having a 'text' attribute).
+
+    Returns:
+        The modified cleaned_response object with cleaned text parts.
+    """
     for part in cleaned_response.content.parts:
-        cleaned_text = part.text
-        if cleaned_text is None:
+        if part.text is None:
             continue
-        cleaned_text = cleaned_text.strip()
-        if cleaned_text.startswith("```html"):
-            cleaned_text = cleaned_text[len("```html"):]
-        if cleaned_text.endswith("```"):
-            cleaned_text = cleaned_text[:-len("```")]
-        part.text = cleaned_text
+
+        # Strip whitespace from the text
+        processed_text = part.text.strip()
+
+        # Remove known code block prefixes
+        if processed_text.startswith("```html"):
+            processed_text = processed_text.removeprefix("```html")
+        elif processed_text.startswith("```json"):
+            processed_text = processed_text.removeprefix("```json")
+
+        # Remove the common code block suffix
+        processed_text = processed_text.removesuffix("```")
+
+        # Update the part's text with the cleaned version
+        part.text = processed_text
+
     return cleaned_response
 
 

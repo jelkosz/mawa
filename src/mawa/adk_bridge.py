@@ -77,7 +77,7 @@ async def call_adk(user_id, prompt):
 
         # todo remove the hardcoded list of returning agents
         if event.is_final_response() and (is_cache_hit(event) or event.author in ["component_page_merger_agent", "main_page_agent",
-                                                          "data_saver_agent"]):
+                                                          "data_saver_agent", "data_loader_agent"]):
             if event.content and event.content.parts:
                 final_response_text = event.content.parts[0].text
             elif event.actions and event.actions.escalate:

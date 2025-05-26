@@ -1,3 +1,16 @@
+# This is THE database.
+mock_users_data = {
+        "brno": [
+            {"id": "id1", "name": "User One", "score": 1234},
+            {"id": "id2", "name": "Other User", "score": 82},
+            {"id": "id3", "name": "Player Three", "score": 187},
+        ],
+        "hradec": [
+            {"id": "id4", "name": "Other Name", "score": 1234},
+            {"id": "id5", "name": "Yet Another", "score": 1234},
+        ]
+    }
+
 def get_users(league: str) -> dict:
     """Retrieves the list of all users per league.
 
@@ -10,17 +23,6 @@ def get_users(league: str) -> dict:
                   If 'error', includes an 'error_message' key.
         """
     league_normalized = league.lower().replace(" ", "")
-    mock_users_data = {
-        "brno": [
-            {"id": "id1", "name": "User One", "score": 1234},
-            {"id": "id2", "name": "Other User", "score": 82},
-            {"id": "id3", "name": "Player Three", "score": 187},
-        ],
-        "hradec": [
-            {"id": "id4", "name": "Other Name", "score": 1234},
-            {"id": "id5", "name": "Yet Another", "score": 1234},
-        ]
-    }
 
     if league_normalized in mock_users_data:
         return {"status": "success", "users": mock_users_data[league_normalized]}
@@ -39,4 +41,5 @@ def add_game(league: str, score: int) -> bool:
         """
     league_normalized = league.lower().replace(" ", "")
     print(f"storing: {score} to league: {league_normalized}")
+    mock_users_data[league_normalized].append({"id": "12", "name": "added dynamically", "score": score})
     return True
