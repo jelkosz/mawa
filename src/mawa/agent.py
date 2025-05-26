@@ -7,9 +7,7 @@ from mawa.tools import get_users, add_game
 # TODOs:
 # - create a naming convention for agents generating visual output and technical agents
 # - make sure to pass the COMMON_HTML_AGENT_PROMPT everywhere
-# - add caching
 # - extract GenerateContentConfig
-# - add chantting component
 # - make the user inputs stored in state
 # - add support for reloading dependent components
 
@@ -60,8 +58,9 @@ main_page_agent = Agent(
                     - the content of the text editor will be the content of the body->prompt from the content_part.
                     - when the cancel button is clicked, the dialog is closed and no additional action is performed
                     - when the save button is clicked, then:
-                       - the content of the editor will replace the content of the body->prompt from the content_part. Always add the string "Use the component_page_agent for generating this content" to the end of the content_part->body.
-                       - make sure you add the actual text of editor + the "Use the component_page_agent for generating this content" to the content_part->body, not a javascript able to provide it.
+                       - the content of the editor will replace the content of the body->prompt from the content_part.
+                       - make sure you add the actual text of editor to the content_part->body, not a javascript able to provide it.
+                       - make sure the body of the POST is always a valid json. For example: "{'id': 'component_1_1', 'prompt': 'Generate me a component telling me a fun fact.'}". 
                        - the script will re-fetch the content if the content_part changed
                        - the dialog will be closed
                     - while the component is loading, replace the content of detail-component-id by something which will tell the user the component is being re-loaded. Respect the styling of the overall component.
@@ -104,7 +103,7 @@ main_page_agent = Agent(
                 # Default Main Section Layout
                     Refer to the "Instructions Provided by Users Per Component" section, to get the default body values per component ID. If this section is not present, use the following defaults:
                     The main section has a single stack of 1 component
-                        - the first component has a body: "Generate me a component with a table of all users from the brno league and their scores. To the bottom left corner of this component, add an add button."                        
+                        - the component has a body: "Generate me a component with a fun fact about cats."                                                
                         
         """
     ),
@@ -113,7 +112,7 @@ main_page_agent = Agent(
 )
 
 # - the first component has a body: "Generate me a component with a table of all users from the brno league and their scores. To the bottom left corner of this component, add an add button."
-# - the component has a body: "Generate me a component with a fun fact about cats."
+
 
 data_loader_agent = Agent(
     name="data_loader_agent",
@@ -360,12 +359,14 @@ cache_decision_agent = Agent(
     ),
     instruction=(
         """
-        You are an agent inspecting the user prompt and deciding, if the result can be loaded from cache or it needs to be calculated.
-        You decide based on what the user request is asking for. If the user request is to load / store or edit data, the result is LIVE.
-        If the user request is to render a page/component, the result is CACHE.
-        Always respect the user's will. If the user explicitly asks for the date to be always calculated, dont recommend loading from cache, return LIVE.
-        Similarly, if the user explicitly asks for the data to be cached, always return CACHE 
-        There are no other possible outputs, always return either LIVE or CACHE.
+        You are an agent determining if a user's request requires live calculation or can be served from cache.
+
+        * **LIVE** if the request involves **loading, storing, or editing data**.
+        * **CACHE** if the request involves **rendering a page or component**.
+        * If the user explicitly states "always calculate" or similar, output **LIVE**.
+        * If the user explicitly states "cache" or similar, output **CACHE**.
+        
+        Return only 'LIVE' or 'CACHE'.
         """
     ),
     output_key="cache_decision_agent_output"
