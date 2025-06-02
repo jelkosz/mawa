@@ -30,7 +30,7 @@ main_page_agent = Agent(
     instruction=(
         """
             You are an agent which generates a simple HTML page. Always generate a HTML page with head and body.
-            Your output will be directly interpreted by a browser so dont include any explanation or any additional text around the HTML content.
+            Your output will be directly interpreted by a browser so don't include any explanation or any additional text around the HTML content.
             Do add additional details like styling and additional components based on the user prompt.
             
             # The Layout of the Page:
@@ -41,34 +41,35 @@ main_page_agent = Agent(
             
             # Generating Components
                 - for each component, generate a header and a content_part.
-                - for each component generate a unique id based on the position in the page. Examples: 
+                - for each component generate a unique id based on the position in the page. Examples:
                    - first row, first column: id=component_1_1
                    - second row, third column: id=component_2_3
                 - the ONLY part, which can be modified as per user request is the "body->prompt" from the content_part. Nothing else.
-                
-                # Header
+            
+                ## Header
                     - the header is a <div> having only one clickable "Edit" icon in the top right corner, nothing else. If the mouse hovers over it, the mouse pointer will change to a hand icon.
                     - if the edit icon is clicked, an edit component will be opened.
                     - an example of to how react to onclick on the edit button: "onclick="document.getElementById('editDialog_5789').style.display='block';"
                     - on load, the edit dialog is always closed.
-                
-                # Edit Component
-                    - the edit component is a dialog with a text editor, a save button and cancel button. 
+            
+                ## Edit Component
+                    - the edit component is a dialog with a text editor, a save button and cancel button.
                     - generate a unique ID for this dialog to avoid clash with an another instance of it.
                     - the content of the text editor will be the content of the body->prompt from the content_part.
                     - when the cancel button is clicked, the dialog is closed and no additional action is performed
                     - when the save button is clicked, then:
                        - the content of the editor will replace the content of the body->prompt from the content_part.
                        - make sure you add the actual text of editor to the content_part->body, not a javascript able to provide it.
-                       - make sure the body of the POST is always a valid json. For example: "{'id': 'component_1_1', 'prompt': 'Generate me a component telling me a fun fact.'}". 
+                       - make sure you always add 'invalidate_cache_key': '{current_prompt_hash}' part to the body.
+                       - make sure the body of the POST is always a valid json. For example: "{'id': 'component_1_1', 'prompt': 'Generate me a fun fact about cats.', 'invalidate_cache_key': '{current_prompt_hash}'}".
                        - the script will re-fetch the content if the content_part changed
                        - the dialog will be closed
                     - while the component is loading, replace the content of detail-component-id by something which will tell the user the component is being re-loaded. Respect the styling of the overall component.
-                    
-                # content_part    
+            
+                ## content_part
                     - the body will be a <div> with an id field and a <script> which will load the content of the div.
-                    - And example:
-                        <div id="detail-component-id-1">Loading Component...</div>
+                    - An example:
+                        <div id="detail-component-id-1" class="loading-message">Loading Component...</div>
                         <script>
                            function loadHTMLWithScripts(html, targetId) {
                                 const targetElement = document.getElementById(targetId);
@@ -86,25 +87,48 @@ main_page_agent = Agent(
                                     document.body.appendChild(newScript);
                                 });
                             }
+                          function updateComponent(componentId, newPrompt, targetDivId) {
+                            document.getElementById(targetDivId).innerHTML = '<div class="loading-message">Reloading component...</div>';
+                            fetch('/api', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({'id': componentId, 'prompt': newPrompt, 'invalidate_cache_key': '{current_prompt_hash}'}})
+                            })
+                            .then(res => res.text())
+                            .then(html => {
+                                loadHTMLWithScripts(html, targetDivId);
+                            })
+                            .catch(error => {
+                                document.getElementById(targetDivId).innerHTML = '<div style="color: red;">Error loading component.</div>';
+                                console.error('Error:', error);
+                            });
+                        }
+                        // Initial load
                           fetch('/api', {
                                 method: 'POST',
                                 headers: {
-                                    'Content-Type': 'text/plain'
+                                    'Content-Type': 'application/json'
                                 },
-                                body: "{'id': 'component_1_1', 'prompt': 'Generate me a component telling me a fun fact.'}"
+                                body: JSON.stringify({'id': 'component_1_1', 'prompt': 'Generate me a fun fact about cats.'})
                             })
                             .then(res => res.text())
                             .then(html => {
                                 loadHTMLWithScripts(html, 'detail-component-id-1');
+                            })
+                            .catch(error => {
+                                document.getElementById('detail-component-id-1').innerHTML = '<div style="color: red;">Error loading component.</div>';
+                                console.error('Error:', error);
                             });
                         </script>
-                    - if the body is not specified, add the following text to it: "{'id': the generated id for this component, 'prompt': 'Generate a simple div containing Hello from a div text inside'}."
-                            
-                # Default Main Section Layout
+                    - if the body is not specified, add the following text to it: "{'id': the generated id for this component, 'prompt': 'Generate a simple div containing Hello from a div text inside', 'invalidate_cache_key': '{current_prompt_hash}'}."
+            
+                ## Default Main Section Layout
                     Refer to the "Instructions Provided by Users Per Component" section, to get the default body values per component ID. If this section is not present, use the following defaults:
                     The main section has a single stack of 1 component
-                        - the component has a body: "Generate me a component with a fun fact about cats."                                                
-                        
+                        - the component has a body: "Generate me a component with a fun fact about cats.""
+                                    
         """
     ),
     before_model_callback=inject_stored_component_ids,

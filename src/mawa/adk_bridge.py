@@ -1,19 +1,19 @@
 import ast
 import time
 
+from click import clear
 from google.adk.events import Event, EventActions
 from google.adk.sessions import InMemorySessionService, Session, State
 from google.adk.runners import Runner
 from google.genai import types
-from pyasn1.type.univ import Boolean
 
 from .agent import main_agent
 import uuid
 
-from .cache import store_to_cache
+from .cache import store_to_cache, key_to_hash, clear_from_cache
 
 session_service = InMemorySessionService()
-APP_NAME = "Fotbalek App"
+APP_NAME = "Table Football App"
 
 runner = Runner(
     agent=main_agent,
@@ -21,8 +21,30 @@ runner = Runner(
     session_service=session_service
 )
 
+def _store_hashed_prompt_to_state(prompt: str, session: Session):
+    """
+       Stores the hash of the prompt to session state so that the agents can access it.
+       It is meant to be used for cache invalidation
 
-def maybe_store_user_prompt(prompt: str, session: Session):
+       Args:
+           prompt: The string to be processed and stored.
+           session: The session to which the event should be added to
+       """
+
+    current_time = time.time()
+    state_changes = {
+        f"current_prompt_hash": key_to_hash(prompt)
+    }
+    actions_with_update = EventActions(state_delta=state_changes)
+    system_event = Event(
+        invocation_id="prompt_hash_update",
+        author="system",
+        actions=actions_with_update,
+        timestamp=current_time
+    )
+    session_service.append_event(session, system_event)
+
+def _maybe_store_custom_component_prompt(prompt: str, session: Session):
     """
        Processes an input string. If the string is a JSON object with an 'id' and 'prompt'
        property, stores the prompt under the user:id in the state.
@@ -55,7 +77,16 @@ def maybe_store_user_prompt(prompt: str, session: Session):
     except (ValueError, SyntaxError, TypeError):
         return prompt
 
-def is_cache_hit(event: Event) -> bool:
+def _maybe_invalidate_cache(prompt: str):
+    try:
+        data = ast.literal_eval(prompt)
+        if isinstance(data, dict) and 'invalidate_cache_key' in data:
+            clear_from_cache(data['invalidate_cache_key'])
+    except (ValueError, SyntaxError, TypeError):
+        # it is an OK state if the prompt can not be parsed
+        pass
+
+def _is_cache_hit(event: Event) -> bool:
     return isinstance(event.custom_metadata, dict) and 'cache_response' in event.custom_metadata and event.custom_metadata['cache_response'] == True
 
 async def call_adk(user_id, prompt):
@@ -66,7 +97,9 @@ async def call_adk(user_id, prompt):
         session_id=session_id
     )
 
-    maybe_store_user_prompt(prompt, session)
+    _maybe_store_custom_component_prompt(prompt, session)
+    _store_hashed_prompt_to_state(prompt, session)
+    _maybe_invalidate_cache(prompt)
 
     content = types.Content(role='user', parts=[types.Part(text=prompt)])
 
@@ -76,7 +109,7 @@ async def call_adk(user_id, prompt):
             f"  [Event] Author: {event.author}, Type: {type(event).__name__}, Final: {event.is_final_response()}, Branch: {event.branch}, Content: {event.content}")
 
         # todo remove the hardcoded list of returning agents
-        if event.is_final_response() and (is_cache_hit(event) or event.author in ["component_page_merger_agent", "main_page_agent",
+        if event.is_final_response() and (_is_cache_hit(event) or event.author in ["component_page_merger_agent", "main_page_agent",
                                                           "data_saver_agent", "data_loader_agent"]):
             if event.content and event.content.parts:
                 final_response_text = event.content.parts[0].text
