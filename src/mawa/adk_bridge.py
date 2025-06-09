@@ -1,25 +1,53 @@
 import ast
 import time
 
-from click import clear
 from google.adk.events import Event, EventActions
 from google.adk.sessions import InMemorySessionService, Session, State
 from google.adk.runners import Runner
 from google.genai import types
 
-from .agent import main_agent
+from .agent import main_agent, style_extraction_agent
 import uuid
 
-from .cache import store_to_cache, key_to_hash, clear_from_cache
+from .cache import store_to_cache, key_to_hash, clear_from_cache, get_from_cache, is_cached
 
-session_service = InMemorySessionService()
 APP_NAME = "Table Football App"
 
-runner = Runner(
+main_agent_session_service = InMemorySessionService()
+main_agent_runner = Runner(
     agent=main_agent,
     app_name=APP_NAME,
-    session_service=session_service
+    session_service=main_agent_session_service
 )
+
+style_extraction_service = InMemorySessionService()
+style_extraction_agent_runner = Runner(
+    agent=style_extraction_agent,
+    app_name=APP_NAME,
+    session_service=style_extraction_service
+)
+
+def _store_styling_info_to_state(instructions: str, session: Session):
+    """
+       Stores the detailed styling instructions extracted from user description to the state.
+
+       Args:
+           instructions: The instructions extracted by a different agent
+           session: The session to which the event should be added to
+       """
+
+    current_time = time.time()
+    state_changes = {
+        f"styling_instructions": instructions
+    }
+    actions_with_update = EventActions(state_delta=state_changes)
+    system_event = Event(
+        invocation_id="styling_instructions_update",
+        author="system",
+        actions=actions_with_update,
+        timestamp=current_time
+    )
+    main_agent_session_service.append_event(session, system_event)
 
 def _store_hashed_prompt_to_state(prompt: str, session: Session):
     """
@@ -42,7 +70,7 @@ def _store_hashed_prompt_to_state(prompt: str, session: Session):
         actions=actions_with_update,
         timestamp=current_time
     )
-    session_service.append_event(session, system_event)
+    main_agent_session_service.append_event(session, system_event)
 
 def _maybe_store_custom_component_prompt(prompt: str, session: Session):
     """
@@ -70,7 +98,7 @@ def _maybe_store_custom_component_prompt(prompt: str, session: Session):
                 actions=actions_with_update,
                 timestamp=current_time
             )
-            session_service.append_event(session, system_event)
+            main_agent_session_service.append_event(session, system_event)
             return data['prompt']
         else:
             return prompt
@@ -89,9 +117,9 @@ def _maybe_invalidate_cache(prompt: str):
 def _is_cache_hit(event: Event) -> bool:
     return isinstance(event.custom_metadata, dict) and 'cache_response' in event.custom_metadata and event.custom_metadata['cache_response'] == True
 
-async def call_adk(user_id, prompt):
+async def run_root_agent(user_id, prompt, styling_instructions):
     session_id = str(uuid.uuid4())
-    session = session_service.create_session(
+    session = main_agent_session_service.create_session(
         app_name=APP_NAME,
         user_id=user_id,
         session_id=session_id
@@ -100,11 +128,12 @@ async def call_adk(user_id, prompt):
     _maybe_store_custom_component_prompt(prompt, session)
     _store_hashed_prompt_to_state(prompt, session)
     _maybe_invalidate_cache(prompt)
+    _store_styling_info_to_state(styling_instructions, session)
 
     content = types.Content(role='user', parts=[types.Part(text=prompt)])
 
     final_response_text = "Agent did not produce a final response."
-    async for event in runner.run_async(user_id=user_id, session_id=session_id, new_message=content):
+    async for event in main_agent_runner.run_async(user_id=user_id, session_id=session_id, new_message=content):
         print(
             f"  [Event] Author: {event.author}, Type: {type(event).__name__}, Final: {event.is_final_response()}, Branch: {event.branch}, Content: {event.content}")
 
@@ -118,10 +147,35 @@ async def call_adk(user_id, prompt):
             break
 
     print(f"<<< Agent Response: {final_response_text}")
-    print(f"Runner created for agent '{runner.agent.name}'.")
+    print(f"Runner created for agent '{main_agent_runner.agent.name}'.")
 
     # todo null checks
-    cache_decision_agent_output = session_service.get_session(app_name=  APP_NAME, user_id= user_id, session_id= session_id).state.get('cache_decision_agent_output').strip('\n')
+    cache_decision_agent_output = main_agent_session_service.get_session(app_name=  APP_NAME, user_id= user_id, session_id= session_id).state.get('cache_decision_agent_output').strip('\n')
     if cache_decision_agent_output == 'CACHE':
         store_to_cache(prompt, final_response_text)
+    return final_response_text
+
+async def run_style_extraction_agent(user_id, prompt):
+    session_id = str(uuid.uuid4())
+    style_extraction_service.create_session(
+        app_name=APP_NAME,
+        user_id=user_id,
+        session_id=session_id
+    )
+    cache_key = f"styling_instructions {prompt}"
+    if is_cached(cache_key):
+        return get_from_cache(cache_key)
+
+    content = types.Content(role='user', parts=[types.Part(text=prompt)])
+
+    final_response_text = "No specific styling provided by the user."
+    async for event in style_extraction_agent_runner.run_async(user_id=user_id, session_id=session_id, new_message=content):
+        if event.is_final_response():
+            if event.content and event.content.parts:
+                final_response_text = event.content.parts[0].text
+            elif event.actions and event.actions.escalate:
+                final_response_text = f"Agent escalated: {event.error_message or 'No specific message.'}"
+            break
+
+    store_to_cache(cache_key, final_response_text)
     return final_response_text

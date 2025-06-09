@@ -5,18 +5,37 @@ from mawa.callbacks import clear_html_response, inject_stored_component_ids, loa
 from mawa.tools import get_users, add_game
 
 # TODOs:
-# - create a naming convention for agents generating visual output and technical agents
-# - make sure to pass the COMMON_HTML_AGENT_PROMPT everywhere
-# - extract GenerateContentConfig
-# - make the user inputs stored in state
-# - add support for reloading dependent components
+# - extract generic parts of the prompts
+# - extract variables which are injected
+# - add security agent
+# - add evals
+# - change the tools to touch DB to use MCP
+# - come up with a use case for a2a
+# - add landing page with examples
+# - cleanup python parts of the code
 
-COMMON_HTML_AGENT_PROMPT = """
-    Follow the following rules:
-        - your output will be directly interpreted by a browser so dont include any explanation or any additional text around the HTML content.
-        - do add additional details like styling and additional contents based on the user prompt.
-        - by default, respect the styling of the page this component is embedded in.
-"""
+style_extraction_agent = Agent(
+    name="style_extraction_agent",
+    model="gemini-2.5-flash-preview-04-17",
+    description=(
+        "Agent to generate clear styling instructions from vague user description."
+    ),
+    instruction=(
+        """
+            You are an agent which generates clear instructions for other LLM agents to style their components.
+            Your input is a vague description by the human user about the expected style.
+            Your output is an nu-ambiguous set of LLM processable instructions on how to style its HTML components.
+            
+            ## Follow the following rules:
+                - While generating the instructions, dont generate actual HTML.
+                - Never recommend using external styling. 
+                - Always add specific un-ambiguous instructions about colors, fonts, border styles and background colors.
+                - Make the instructions two paragraphs long.
+                - Never use terms like: "such as", "or similar" etc since they introduce ambiguity.
+                - Add instructions for how to behave in case of this instructions dont contain the description explicitely. 
+        """
+    ),
+)
 
 main_page_agent = Agent(
     name="main_page_agent",
@@ -31,7 +50,7 @@ main_page_agent = Agent(
         """
             You are an agent which generates a simple HTML page. Always generate a HTML page with head and body.
             Your output will be directly interpreted by a browser so don't include any explanation or any additional text around the HTML content.
-            Do add additional details like styling and additional components based on the user prompt.
+            Do add additional components based on the user prompt.
             
             # The Layout of the Page:
                 - the page has a masthead containing a logout button (doing nothing) and a text saying "Dynamic Table Football"
@@ -48,6 +67,7 @@ main_page_agent = Agent(
             
                 ## Header
                     - the header is a <div> having only one clickable "Edit" icon in the top right corner, nothing else. If the mouse hovers over it, the mouse pointer will change to a hand icon.
+                    - the header never has a title. Never add anything like "Component 1" as the title of the header or anything similar. 
                     - if the edit icon is clicked, an edit component will be opened.
                     - an example of to how react to onclick on the edit button: "onclick="document.getElementById('editDialog_5789').style.display='block';"
                     - on load, the edit dialog is always closed.
@@ -64,7 +84,7 @@ main_page_agent = Agent(
                        - make sure the body of the POST is always a valid json. For example: "{'id': 'component_1_1', 'prompt': 'Generate me a fun fact about cats.', 'invalidate_cache_key': '{current_prompt_hash}'}".
                        - the script will re-fetch the content if the content_part changed
                        - the dialog will be closed
-                    - while the component is loading, replace the content of detail-component-id by something which will tell the user the component is being re-loaded. Respect the styling of the overall component.
+                    - while the component is loading, replace the content of detail-component-id by something which will tell the user the component is being re-loaded..
             
                 ## content_part
                     - the body will be a <div> with an id field and a <script> which will load the content of the div.
@@ -125,18 +145,18 @@ main_page_agent = Agent(
                     - if the body is not specified, add the following text to it: "{'id': the generated id for this component, 'prompt': 'Generate a simple div containing Hello from a div text inside', 'invalidate_cache_key': '{current_prompt_hash}'}."
             
                 ## Default Main Section Layout
-                    Refer to the "Instructions Provided by Users Per Component" section, to get the default body values per component ID. If this section is not present, use the following defaults:
-                    The main section has a single stack of 1 component
-                        - the component has a body: "Generate me a component with a fun fact about cats.""
-                                    
+                    - Refer to the "Instructions Provided by Users Per Component" section, to get the default body values per component ID. If this section is not present, use the following defaults:
+                    - The main section has a single stack of 2 components
+                        - the first component has a body: "Generate me a component with a table of all users from the brno league and their scores. To the bottom left corner of this component, add an add button."
+                        - the second component has a body: "Generate me a component with a fun fact about cats."
+                ## Styling Instructions
+                    - Never come up with your own colors/fonts or styles in general
+                    - Always follow the following styling instructions: {styling_instructions}
         """
     ),
     before_model_callback=inject_stored_component_ids,
     after_model_callback=clear_html_response,
 )
-
-# - the first component has a body: "Generate me a component with a table of all users from the brno league and their scores. To the bottom left corner of this component, add an add button."
-
 
 data_loader_agent = Agent(
     name="data_loader_agent",
@@ -194,28 +214,25 @@ tabular_data_visualization_agent = Agent(
         """
             You are a specialized agent designed to generate nicely formatted HTML tables.
 
-            **Output Format:**
-            * Your output MUST be raw HTML, directly renderable by a web browser.
-            * DO NOT include any conversational text, explanations, or extraneous characters outside the HTML structure.
-            * If no table generation is requested, return the literal string `NO_TABULAR_DATA`.
+            ## Output Format:
+                - Your output MUST be raw HTML, directly renderable by a web browser.
+                - DO NOT include any conversational text, explanations, or extraneous characters outside the HTML structure.
+                - If no table generation is requested, return the literal string `NO_TABULAR_DATA`.
             
-            **Table Generation Rules:**
-            * **Styling:**
-                * By default, inherit styling from the embedding webpage.
-                * Incorporate additional styling (e.g., colors, fonts, borders) and content (e.g., headers, footers, captions) as explicitly requested by the user.
-            * **Data Loading:**
-                * Data MUST be loaded asynchronously via a `POST` request to the `/api` endpoint. 
-                * Generate a <script> tag which uses XHR to load the data.
-                * Make sure this script will load call the server right after this component is done rendering. 
-                * Add a reload button. If clicked, the same server call will be executed loading the data again.
-                * The `POST` request body MUST be a JSON object specifying:
-                    * `request`: "load data",
-                    * `source`: (string) The origin or identifier of the data.
-                    * `format`: (string) The desired data format (e.g., 'JSON', 'CSV').
-                    * `output_format`: (object) The output structure the table generated by you can process. For instance, to get a list of users, the structure would be `[{'name': 'userName', 'age': 'userAge'}]`.
-                * While data is loading, display a prominent loading indicator within the table structure.
+            ## Table Generation Rules:
+            ### Data Loading:
+                - Data MUST be loaded asynchronously via a `POST` request to the `/api` endpoint. 
+                - Generate a <script> tag which uses XHR to load the data.
+                - Make sure this script will load call the server right after this component is done rendering. 
+                - Add a reload button. If clicked, the same server call will be executed loading the data again.
+                - The `POST` request body MUST be a JSON object specifying:
+                    - `request`: "load data",
+                    - `source`: (string) The origin or identifier of the data.
+                    - `format`: (string) The desired data format (e.g., 'JSON', 'CSV').
+                    - `output_format`: (object) The output structure the table generated by you can process. For instance, to get a list of users, the structure would be `[{'name': 'userName', 'age': 'userAge'}]`.
+                - While data is loading, display a prominent loading indicator within the table structure.
             
-            **Example Request Body for Data Loading:**
+            ## Example Request Body for Data Loading:
             {
                 "request": "load data",
                 "source": "users_database",
@@ -231,6 +248,10 @@ tabular_data_visualization_agent = Agent(
                     },
                 ]
             }
+            
+            ## Styling Instructions
+                - Never come up with your own colors/fonts or styles in general
+                - Always follow the following styling instructions: {styling_instructions} 
         """
     ),
     after_model_callback=clear_html_response,
@@ -289,14 +310,17 @@ component_page_merger_agent = Agent(
         """
             You are an agent which generates an HTML div with content.
             
-            Follow the following rules:
-                - your output will be directly interpreted by a browser so dont include any explanation or any additional text around the HTML content.
-                - do add additional details like styling and additional contents based on the user prompt.
-                - by default, respect the styling of the page this component is embedded in.
-                - never add any <script> tags into the component. If you need additional data, always use tools to load them.
+            ## Follow the following rules:
+                - Your output will be directly interpreted by a browser so dont include any explanation or any additional text around the HTML content.
+                - Do add additional content based on the user prompt.
                 - If the input contains a request to generate tabular data, add the {tabular_data_visualization_agent_output} to your output.
                 - If the input contains a request to generate an add button, add the {add_data_agent_output} to your output.                 
                 - If the request did not contain any of the two above requests, ignore the output from the previous agents and generate your output directly.
+                - Never add NO_ADD_BUTTON nor NO_TABULAR_DATA directly to the output
+            
+            ## Styling Instructions
+                - Never come up with your own colors/fonts or styles in general
+                - Always follow the following styling instructions: {styling_instructions}
         """
     ),
     after_model_callback=clear_html_response,
