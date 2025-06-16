@@ -4,12 +4,12 @@ from starlette.responses import HTMLResponse
 
 from mawa.adk_bridge import run_root_agent, run_style_extraction_agent
 from mawa.cache import store_to_cache, get_from_cache
+from mawa.constants import ROOT_PROMPT
 
 FOOTBALL_FAVICON_SVG = """<svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 100 100">
   <circle cx="50" cy="50" r="48" fill="#FFFFFF"/> <polygon points="50,25 70,40 60,70 40,70 30,40" fill="#000000"/> </svg>"""
 
 USER_NAME = "hardcoded_username"
-ROOT_PROMPT = "root_prompt"
 
 app = FastAPI()
 client = genai.Client()

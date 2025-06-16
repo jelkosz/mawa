@@ -4,13 +4,16 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.models import LlmResponse, LlmRequest
 from google.genai.types import Content, Part
 from mawa.cache import is_cached, get_from_cache
+from mawa.constants import ROOT_PROMPT
+
 
 def load_from_cache(
     callback_context: CallbackContext, llm_request: LlmRequest
 ) -> Optional[LlmResponse]:
     cache_decision_agent_output = callback_context.state.get('cache_decision_agent_output').strip('\n')
     if cache_decision_agent_output == 'CACHE':
-        key = callback_context.user_content.parts[0].text
+        root_prompt = get_from_cache(ROOT_PROMPT)
+        key = root_prompt + callback_context.user_content.parts[0].text
         if is_cached(key):
             cache_response = LlmResponse(
                 content=Content(

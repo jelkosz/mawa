@@ -1,0 +1,1 @@
+ROOT_PROMPT = "root_prompt"

@@ -10,6 +10,7 @@ from .agent import main_agent, style_extraction_agent
 import uuid
 
 from .cache import store_to_cache, key_to_hash, clear_from_cache, get_from_cache, is_cached
+from .constants import ROOT_PROMPT
 
 APP_NAME = "Table Football App"
 
@@ -152,7 +153,10 @@ async def run_root_agent(user_id, prompt, styling_instructions):
     # todo null checks
     cache_decision_agent_output = main_agent_session_service.get_session(app_name=  APP_NAME, user_id= user_id, session_id= session_id).state.get('cache_decision_agent_output').strip('\n')
     if cache_decision_agent_output == 'CACHE':
-        store_to_cache(prompt, final_response_text)
+        root_prompt = get_from_cache(ROOT_PROMPT)
+        # this combination is used to make sure that different styling of the component will be cached separately
+        cache_key = root_prompt + prompt
+        store_to_cache(cache_key, final_response_text)
     return final_response_text
 
 async def run_style_extraction_agent(user_id, prompt):
