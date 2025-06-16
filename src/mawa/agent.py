@@ -1,7 +1,7 @@
 from google.adk.agents import Agent, ParallelAgent, SequentialAgent
 from google.genai.types import GenerateContentConfig
 
-from mawa.callbacks import clear_html_response, inject_stored_component_ids, load_from_cache
+from mawa.callbacks import clear_technical_response, inject_stored_component_ids, load_from_cache
 from mawa.tools import get_users, add_game
 
 # TODOs:
@@ -24,13 +24,13 @@ style_extraction_agent = Agent(
         """
             You are an agent which generates clear instructions for other LLM agents to style their components.
             Your input is a vague description by the human user about the expected style.
-            Your output is an nu-ambiguous set of LLM processable instructions on how to style its HTML components.
+            Your output is an un-ambiguous set of LLM processable instructions on how to style its HTML components.
             
             ## Follow the following rules:
                 - While generating the instructions, dont generate actual HTML.
                 - Never recommend using external styling. 
                 - Always add specific un-ambiguous instructions about colors, fonts, border styles and background colors.
-                - Make the instructions two paragraphs long.
+                - Make the instructions one paragraphs long.
                 - Never use terms like: "such as", "or similar" etc since they introduce ambiguity.
                 - Add instructions for how to behave in case of this instructions dont contain the description explicitely. 
         """
@@ -147,7 +147,7 @@ main_page_agent = Agent(
                 ## Default Main Section Layout
                     - Refer to the "Instructions Provided by Users Per Component" section, to get the default body values per component ID. If this section is not present, use the following defaults:
                     - The main section has a single stack of 2 components
-                        - the first component has a body: "Generate me a component with a table of all users from the brno league and their scores. To the bottom left corner of this component, add an add button."
+                        - the first component has a body: "Generate me a component with a table of all users from the brno league and their scores. Make sure to add an add new game component."
                         - the second component has a body: "Generate me a component with a fun fact about cats."
                 ## Styling Instructions
                     - Never come up with your own colors/fonts or styles in general
@@ -155,7 +155,7 @@ main_page_agent = Agent(
         """
     ),
     before_model_callback=inject_stored_component_ids,
-    after_model_callback=clear_html_response,
+    after_model_callback=clear_technical_response,
 )
 
 data_loader_agent = Agent(
@@ -197,7 +197,7 @@ data_loader_agent = Agent(
             Your output will always be a JSON array with the structure following the output_format from the input.:
         """
     ),
-    after_model_callback=clear_html_response,
+    after_model_callback=clear_technical_response,
     tools=[get_users],
 )
 
@@ -223,7 +223,8 @@ tabular_data_visualization_agent = Agent(
             ### Data Loading:
                 - Data MUST be loaded asynchronously via a `POST` request to the `/api` endpoint. 
                 - Generate a <script> tag which uses XHR to load the data.
-                - Make sure this script will load call the server right after this component is done rendering. 
+                - Make sure this script will load call the server right after this component is done rendering.
+                - Never add an ADD button to the component. 
                 - Add a reload button. If clicked, the same server call will be executed loading the data again.
                 - The `POST` request body MUST be a JSON object specifying:
                     - `request`: "load data",
@@ -254,11 +255,11 @@ tabular_data_visualization_agent = Agent(
                 - Always follow the following styling instructions: {styling_instructions} 
         """
     ),
-    after_model_callback=clear_html_response,
+    after_model_callback=clear_technical_response,
     output_key="tabular_data_visualization_agent_output"
 )
 
-add_data_agent = Agent(
+add_data_to_table_agent = Agent(
     name="add_data_agent",
     model="gemini-2.5-flash-preview-04-17",
     generate_content_config=GenerateContentConfig(
@@ -269,31 +270,33 @@ add_data_agent = Agent(
     ),
     instruction=(
         """
-            You are an agent which generates an "add" button and an HTML form in a dialog opened by the add button. 
+            You are an agent which generates an html form to add a game to the list.
             
-            If there is no request to generate an add button, return NO_ADD_BUTTON.
+            If there is no request to generate an add new game component or form, return NO_ADD_COMPONENT.
             
-            If there is a request to generate an add button, follow the instructions below.
+            If there is a request to generate an add new game component or form, follow the instructions below.
             # Basic Behavior
-                - Create a dialog and generate it a unique id. For example addDialog_156.
-                - The dialog is not visible on load.
-                - Create an "add" button which listens to the onclick event. Once the button is clicked, change the display of the dialog to be visible. For example "onclick="document.getElementById('addDialog_156').style.display='block';" 
+                - Do not generate the <html> <body> etc. Only generate a <div>, since this output will be embedded into a different component.
+                - Make sure this <div> can be embedded into other <div>s in the page.
+                - Inside of the <div> generate a <form> which contains data the user can fill.  
 
-            # The content and behavior of the dialog content 
-                - the content of the dialog is:
-                    - a form with two fields: the score as an int and the league as a listbox containing Brno and Hradec.
-                    - two buttons: save and cancel.
-                - if the cancel is clicked, close the dialog.
+            # The content and behavior of the form 
+                - the content of the form is:
+                    - the score as an int 
+                    - the league as a listbox containing Brno and Hradec.
+                    - one buttons: save 
                 - give the save button an id with a prefix save_button and a random suffix to make it unique. For example: save_button_123
                 - add a javascript event listener to listen on click event of this save button. For example: document.getElementById("save_button_123").addEventListener("click", function() {});
                 - in the listener, call the /api endpoint with a body described in the "The body of the POST request". Use XHR to call the /api.
+                - while the server call is ongoing, display a prominent loading indicator in the form. Hide the loading indicator once the server call returns.
+                - once the server call returns, hide the loading indicator. Do not do any other action afterwards.
             
             # The body of the POST request
                 - The body will always begin with the text describing what the content of the request will be. For example: create a new game. 
                 - After this, a json will continue with the data. The json will encode all the data from the dialog form.
         """
     ),
-    after_model_callback=clear_html_response,
+    after_model_callback=clear_technical_response,
     output_key="add_data_agent_output"
 )
 
@@ -314,23 +317,23 @@ component_page_merger_agent = Agent(
                 - Your output will be directly interpreted by a browser so dont include any explanation or any additional text around the HTML content.
                 - Do add additional content based on the user prompt.
                 - If the input contains a request to generate tabular data, add the {tabular_data_visualization_agent_output} to your output.
-                - If the input contains a request to generate an add button, add the {add_data_agent_output} to your output.                 
+                - If the input contains a request to an add add new game component or form, add the {add_data_agent_output} to your output.                 
                 - If the request did not contain any of the two above requests, ignore the output from the previous agents and generate your output directly.
-                - Never add NO_ADD_BUTTON nor NO_TABULAR_DATA directly to the output
+                - Never add the string "NO_ADD_COMPONENT" nor "NO_TABULAR_DATA" directly to the output
             
             ## Styling Instructions
                 - Never come up with your own colors/fonts or styles in general
                 - Always follow the following styling instructions: {styling_instructions}
         """
     ),
-    after_model_callback=clear_html_response,
+    after_model_callback=clear_technical_response,
 )
 
 component_parallel_sub_agents = ParallelAgent(
     name="component_parallel_sub_agents",
     sub_agents=[
         tabular_data_visualization_agent,
-        add_data_agent
+        add_data_to_table_agent
     ],
     description="Gets the user input and calls all sub agents in parallel to generate their portion of the output."
 )
@@ -341,7 +344,6 @@ component_page_agent = SequentialAgent(
     description="Coordinates parallel research and synthesizes the results."
 )
 
-# todo add clear callback
 data_saver_agent = Agent(
     name="data_saver_agent",
     model="gemini-2.5-flash-preview-04-17",
@@ -370,11 +372,12 @@ data_saver_agent = Agent(
         """
     ),
     tools=[add_game],
+    after_model_callback=clear_technical_response,
 )
 
 root_agent = Agent(
     name="generic_webpage_root_agent",
-    model="gemini-2.0-flash-lite",
+    model="gemini-2.0-flash",
     generate_content_config=GenerateContentConfig(
         temperature=0,
     ),
@@ -386,8 +389,8 @@ root_agent = Agent(
         You are router agent delegating work to different agents. In case the answer is an HTML, do not interpret it further and just return it as-is.
         Always delegate the request to the appropriate agent. For example:
          - if the request asks for a component, delegate to component_page_agent
-         - if the request asks for a generic/main etc or does not specify further, delegate to the main_page_agent
          - if the request asks for creating, storing or saving data, delegate to data_saver_agent
+         - in other cases, delegate to the main_page_agent
         """
     ),
     sub_agents=[

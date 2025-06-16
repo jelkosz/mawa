@@ -22,7 +22,7 @@ def load_from_cache(
             return cache_response
     return None
 
-def clear_html_response(
+def clear_technical_response(
     callback_context: CallbackContext,
     llm_response: LlmResponse,
 ) -> Optional[LlmResponse]:

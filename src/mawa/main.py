@@ -3,11 +3,13 @@ from google import genai
 from starlette.responses import HTMLResponse
 
 from mawa.adk_bridge import run_root_agent, run_style_extraction_agent
+from mawa.cache import store_to_cache, get_from_cache
 
 FOOTBALL_FAVICON_SVG = """<svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 100 100">
   <circle cx="50" cy="50" r="48" fill="#FFFFFF"/> <polygon points="50,25 70,40 60,70 40,70 30,40" fill="#000000"/> </svg>"""
 
 USER_NAME = "hardcoded_username"
+ROOT_PROMPT = "root_prompt"
 
 app = FastAPI()
 client = genai.Client()
@@ -24,8 +26,9 @@ async def root(root_prompt: str):
     if root_prompt == "favicon.ico":
         return Response(content=FOOTBALL_FAVICON_SVG, media_type="image/svg+xml")
 
+    store_to_cache(ROOT_PROMPT, root_prompt)
     return await _run_mawa(USER_NAME, root_prompt)
 
 async def _run_mawa(username, prompt):
-    styling_instructions = await run_style_extraction_agent(username, prompt)
+    styling_instructions = await run_style_extraction_agent(username, get_from_cache(ROOT_PROMPT))
     return HTMLResponse(await run_root_agent(username, prompt, styling_instructions))
