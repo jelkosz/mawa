@@ -2,7 +2,7 @@ from google.adk.agents import Agent, ParallelAgent, SequentialAgent
 from google.genai.types import GenerateContentConfig
 
 from mawa.callbacks import clear_technical_response, inject_stored_component_ids, load_from_cache
-from mawa.tools import get_users, add_game
+from mawa.tools import get_matches, add_match
 
 # TODOs:
 # - extract generic parts of the prompts
@@ -10,7 +10,6 @@ from mawa.tools import get_users, add_game
 # - add security agent
 # - add evals
 # - change the tools to touch DB to use MCP
-# - come up with a use case for a2a
 # - add landing page with examples
 # - cleanup python parts of the code
 
@@ -147,7 +146,7 @@ main_page_agent = Agent(
                 ## Default Main Section Layout
                     - Refer to the "Instructions Provided by Users Per Component" section, to get the default body values per component ID. If this section is not present, use the following defaults:
                     - The main section has a single stack of 2 components
-                        - the first component has a body: "Generate me a component with a table of all users from the brno league and their scores. Make sure to add an add new game component."
+                        - the first component has a body: "Generate me a component with a table of matches from the brno league containing the name of both players and their scores. First two columns are the player names, last two the scores. Make sure to add an add new match component."
                         - the second component has a body: "Generate me a component with a fun fact about cats."
                 ## Styling Instructions
                     - Never come up with your own colors/fonts or styles in general
@@ -171,17 +170,16 @@ data_loader_agent = Agent(
         """
             You are a specialized agent designed to load data using available tools.
 
-            **Available Tools:** `[get_users]`
+            **Available Tools:** `[get_matches]`
             
             **Input Format:**
             Your input will always be a JSON object with the following structure:
             
             {
                 "request": "load data",
-                "source": "users_database",
-                "format": "JSON",
-                "output_format": 
-                [
+                "source": "matches_database",
+                "format": "JSON", 
+                "output_format": [
                     {
                         "name": "userName1",
                         "age": "userAge1"
@@ -194,11 +192,11 @@ data_loader_agent = Agent(
             }
             
             **Output Format:**
-            Your output will always be a JSON array with the structure following the output_format from the input.:
+            Your output will always be a JSON array with the structure following the output_format from the input.
         """
     ),
     after_model_callback=clear_technical_response,
-    tools=[get_users],
+    tools=[get_matches],
 )
 
 tabular_data_visualization_agent = Agent(
@@ -270,20 +268,23 @@ add_data_to_table_agent = Agent(
     ),
     instruction=(
         """
-            You are an agent which generates an html form to add a game to the list.
+            You are an agent which generates an html form to add a match to the list.
             
-            If there is no request to generate an add new game component or form, return NO_ADD_COMPONENT.
+            If there is no request to generate an add new match component or form, return NO_ADD_COMPONENT.
             
-            If there is a request to generate an add new game component or form, follow the instructions below.
+            If there is a request to generate an add new match component or form, follow the instructions below.
             # Basic Behavior
                 - Do not generate the <html> <body> etc. Only generate a <div>, since this output will be embedded into a different component.
                 - Make sure this <div> can be embedded into other <div>s in the page.
                 - Inside of the <div> generate a <form> which contains data the user can fill.  
 
-            # The content and behavior of the form 
+            # The content and behavior of the form
                 - the content of the form is:
-                    - the score as an int 
                     - the league as a listbox containing Brno and Hradec.
+                    - Name of player 1
+                    - Score of player 1
+                    - Name of player 2
+                    - Score of player 2  
                     - one buttons: save 
                 - give the save button an id with a prefix save_button and a random suffix to make it unique. For example: save_button_123
                 - add a javascript event listener to listen on click event of this save button. For example: document.getElementById("save_button_123").addEventListener("click", function() {});
@@ -292,7 +293,7 @@ add_data_to_table_agent = Agent(
                 - once the server call returns, hide the loading indicator. Do not do any other action afterwards.
             
             # The body of the POST request
-                - The body will always begin with the text describing what the content of the request will be. For example: create a new game. 
+                - The body will always begin with the text describing what the content of the request will be. For example: create a new match. 
                 - After this, a json will continue with the data. The json will encode all the data from the dialog form.
         """
     ),
@@ -317,7 +318,7 @@ component_page_merger_agent = Agent(
                 - Your output will be directly interpreted by a browser so dont include any explanation or any additional text around the HTML content.
                 - Do add additional content based on the user prompt.
                 - If the input contains a request to generate tabular data, add the {tabular_data_visualization_agent_output} to your output.
-                - If the input contains a request to an add add new game component or form, add the {add_data_agent_output} to your output.                 
+                - If the input contains a request to an add add new match component or form, add the {add_data_agent_output} to your output.                 
                 - If the request did not contain any of the two above requests, ignore the output from the previous agents and generate your output directly.
                 - Never add the string "NO_ADD_COMPONENT" nor "NO_TABULAR_DATA" directly to the output
             
@@ -356,14 +357,20 @@ data_saver_agent = Agent(
     instruction=(
         """
         You are an agent storing data to server.
-        For storing data, you have to call one of the following tools: [add_game].
-        The input provided to you will be a prefix like "create a new game" and a json encoded string. Always convert the json encoded strong to the input parameters of the tool you will be using.
+        For storing data, you have to call one of the following tools: [add_match].
+        The input provided to you will be a prefix like "create a new match" and a json encoded string. Always convert the json encoded string to the input parameters of the tool you will be using.
         Your output will be a json containing a status and an optional message. The status will either be "success" or "error".
         Example input:
-        - create a new game: {"score":2,"league":"Brno"}
+        - create a new match: {
+                "id": "match_id3",
+                "player1": "Pecene",
+                "player1_score": "10",
+                "player2": "Kure",
+                "player2_score": "4",
+            }
         Examples output:
         - {"status": "success", "message": "data saved successfully"}
-        - {"status": "error", "message": "the provided parameters can not be translated to the tool add_game I need to be calling"}
+        - {"status": "error", "message": "the provided parameters can not be translated to the tool add_match I need to be calling"}
         
         
         If you wont know how to convert the input json into parameters of the tool, return an error describing the issue.
@@ -371,7 +378,7 @@ data_saver_agent = Agent(
         The only success case is, if the tool has been successfully called. Never return success without attempting to call a tool.
         """
     ),
-    tools=[add_game],
+    tools=[add_match],
     after_model_callback=clear_technical_response,
 )
 
