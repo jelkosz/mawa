@@ -5,13 +5,24 @@ from mawa.callbacks import clear_technical_response, inject_stored_component_ids
 from mawa.tools import get_matches, add_match
 
 # TODOs:
-# - extract generic parts of the prompts
 # - extract variables which are injected
 # - add security agent
 # - add evals
 # - change the tools to touch DB to use MCP
 # - add landing page with examples
 # - cleanup python parts of the code
+# - add chart component
+# - make this work:
+    # Generate me a component with a table players from Hradec league and calculate the overall score per player using 3 different algorithms.
+    # 1: Win/Loss Record
+    # 2: Points Difference
+    # 3: Points Scored / Conceded Ratio
+
+STYLING_INSTRUCTIONS_SECTION = """
+            ## Styling Instructions
+                - Never come up with your own colors/fonts or styles in general
+                - Always follow the following styling instructions: {styling_instructions}
+"""
 
 style_extraction_agent = Agent(
     name="style_extraction_agent",
@@ -46,7 +57,7 @@ main_page_agent = Agent(
         "Agent to generate the main html page of the document."
     ),
     instruction=(
-        """
+        f"""
             You are an agent which generates a simple HTML page. Always generate a HTML page with head and body.
             Your output will be directly interpreted by a browser so don't include any explanation or any additional text around the HTML content.
             Do add additional components based on the user prompt.
@@ -79,8 +90,8 @@ main_page_agent = Agent(
                     - when the save button is clicked, then:
                        - the content of the editor will replace the content of the body->prompt from the content_part.
                        - make sure you add the actual text of editor to the content_part->body, not a javascript able to provide it.
-                       - make sure you always add 'invalidate_cache_key': '{current_prompt_hash}' part to the body.
-                       - make sure the body of the POST is always a valid json. For example: "{'id': 'component_1_1', 'prompt': 'Generate me a fun fact about cats.', 'invalidate_cache_key': '{current_prompt_hash}'}".
+                       - make sure you always add 'invalidate_cache_key': '{{current_prompt_hash}}' part to the body.
+                       - make sure the body of the POST is always a valid json. For example: "{{'id': 'component_1_1', 'prompt': 'Generate me a fun fact about cats.', 'invalidate_cache_key': '{{current_prompt_hash}}'}}".
                        - the script will re-fetch the content if the content_part changed
                        - the dialog will be closed
                     - while the component is loading, replace the content of detail-component-id by something which will tell the user the component is being re-loaded..
@@ -90,67 +101,66 @@ main_page_agent = Agent(
                     - An example:
                         <div id="detail-component-id-1" class="loading-message">Loading Component...</div>
                         <script>
-                           function loadHTMLWithScripts(html, targetId) {
+                           function loadHTMLWithScripts(html, targetId) {{
                                 const targetElement = document.getElementById(targetId);
                                 const parser = new DOMParser();
                                 const doc = parser.parseFromString(html, 'text/html');
                                 const scripts = Array.from(doc.querySelectorAll('script'));
                                 scripts.forEach(script => script.remove());
                                 targetElement.innerHTML = doc.body.innerHTML;
-                                scripts.forEach(oldScript => {
+                                scripts.forEach(oldScript => {{
                                     const newScript = document.createElement('script');
-                                    Array.from(oldScript.attributes).forEach(attr => {
+                                    Array.from(oldScript.attributes).forEach(attr => {{
                                         newScript.setAttribute(attr.name, attr.value);
-                                    });
+                                    }});
                                     newScript.textContent = oldScript.textContent;
                                     document.body.appendChild(newScript);
-                                });
-                            }
-                          function updateComponent(componentId, newPrompt, targetDivId) {
+                                }});
+                            }}
+                          function updateComponent(componentId, newPrompt, targetDivId) {{
                             document.getElementById(targetDivId).innerHTML = '<div class="loading-message">Reloading component...</div>';
-                            fetch('/api', {
+                            fetch('/api', {{
                                 method: 'POST',
-                                headers: {
+                                headers: {{
                                     'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({'id': componentId, 'prompt': newPrompt, 'invalidate_cache_key': '{current_prompt_hash}'}})
-                            })
+                                }},
+                                body: JSON.stringify({{'id': componentId, 'prompt': newPrompt, 'invalidate_cache_key': '{{current_prompt_hash}}'}})
+                            }})
                             .then(res => res.text())
-                            .then(html => {
+                            .then(html => {{
                                 loadHTMLWithScripts(html, targetDivId);
-                            })
-                            .catch(error => {
+                            }})
+                            .catch(error => {{
                                 document.getElementById(targetDivId).innerHTML = '<div style="color: red;">Error loading component.</div>';
                                 console.error('Error:', error);
-                            });
-                        }
+                            }});
+                        }}
                         // Initial load
-                          fetch('/api', {
+                          fetch('/api', {{
                                 method: 'POST',
-                                headers: {
+                                headers: {{
                                     'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({'id': 'component_1_1', 'prompt': 'Generate me a fun fact about cats.'})
-                            })
+                                }},
+                                body: JSON.stringify({{'id': 'component_1_1', 'prompt': 'Generate me a fun fact about cats.'}})
+                            }})
                             .then(res => res.text())
-                            .then(html => {
+                            .then(html => {{
                                 loadHTMLWithScripts(html, 'detail-component-id-1');
-                            })
-                            .catch(error => {
+                            }})
+                            .catch(error => {{
                                 document.getElementById('detail-component-id-1').innerHTML = '<div style="color: red;">Error loading component.</div>';
                                 console.error('Error:', error);
-                            });
+                            }});
                         </script>
-                    - if the body is not specified, add the following text to it: "{'id': the generated id for this component, 'prompt': 'Generate a simple div containing Hello from a div text inside', 'invalidate_cache_key': '{current_prompt_hash}'}."
+                    - if the body is not specified, add the following text to it: "{{'id': the generated id for this component, 'prompt': 'Generate a simple div containing Hello from a div text inside', 'invalidate_cache_key': '{{current_prompt_hash}}'}}."
             
                 ## Default Main Section Layout
                     - Refer to the "Instructions Provided by Users Per Component" section, to get the default body values per component ID. If this section is not present, use the following defaults:
                     - The main section has a single stack of 2 components
                         - the first component has a body: "Generate me a component with a table of matches from the brno league containing the name of both players and their scores. First two columns are the player names, last two the scores. Make sure to add an add new match component."
                         - the second component has a body: "Generate me a component with a fun fact about cats."
-                ## Styling Instructions
-                    - Never come up with your own colors/fonts or styles in general
-                    - Always follow the following styling instructions: {styling_instructions}
+
+{STYLING_INSTRUCTIONS_SECTION}
         """
     ),
     before_model_callback=inject_stored_component_ids,
@@ -209,7 +219,7 @@ tabular_data_visualization_agent = Agent(
         "Agent to generate an HTML table with data."
     ),
     instruction=(
-        """
+        f"""
             You are a specialized agent designed to generate nicely formatted HTML tables.
 
             ## Output Format:
@@ -228,29 +238,27 @@ tabular_data_visualization_agent = Agent(
                     - `request`: "load data",
                     - `source`: (string) The origin or identifier of the data.
                     - `format`: (string) The desired data format (e.g., 'JSON', 'CSV').
-                    - `output_format`: (object) The output structure the table generated by you can process. For instance, to get a list of users, the structure would be `[{'name': 'userName', 'age': 'userAge'}]`.
+                    - `output_format`: (object) The output structure the table generated by you can process. For instance, to get a list of users, the structure would be `[{{'name': 'userName', 'age': 'userAge'}}]`.
                 - While data is loading, display a prominent loading indicator within the table structure.
             
             ## Example Request Body for Data Loading:
-            {
+            {{
                 "request": "load data",
                 "source": "users_database",
                 "format": "JSON",
                 "output_format": [
-                    {
+                    {{
                         "name": "userName1",
                         "age": "userAge1"
-                    },
-                    {
+                    }},
+                    {{
                         "name": "userName2",
                         "age": "userAge2"
-                    },
+                    }},
                 ]
-            }
+            }}
             
-            ## Styling Instructions
-                - Never come up with your own colors/fonts or styles in general
-                - Always follow the following styling instructions: {styling_instructions} 
+{STYLING_INSTRUCTIONS_SECTION}
         """
     ),
     after_model_callback=clear_technical_response,
@@ -311,20 +319,18 @@ component_page_merger_agent = Agent(
         "Agent to generate the component html."
     ),
     instruction=(
-        """
+        f"""
             You are an agent which generates an HTML div with content.
             
             ## Follow the following rules:
                 - Your output will be directly interpreted by a browser so dont include any explanation or any additional text around the HTML content.
                 - Do add additional content based on the user prompt.
-                - If the input contains a request to generate tabular data, add the {tabular_data_visualization_agent_output} to your output.
-                - If the input contains a request to an add add new match component or form, add the {add_data_agent_output} to your output.                 
+                - If the input contains a request to generate tabular data, add the {{tabular_data_visualization_agent_output}} to your output.
+                - If the input contains a request to an add add new match component or form, add the {{add_data_agent_output}} to your output.                 
                 - If the request did not contain any of the two above requests, ignore the output from the previous agents and generate your output directly.
                 - Never add the string "NO_ADD_COMPONENT" nor "NO_TABULAR_DATA" directly to the output
             
-            ## Styling Instructions
-                - Never come up with your own colors/fonts or styles in general
-                - Always follow the following styling instructions: {styling_instructions}
+{STYLING_INSTRUCTIONS_SECTION}
         """
     ),
     after_model_callback=clear_technical_response,
