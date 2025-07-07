@@ -11,12 +11,12 @@ from mawa.tools import get_matches, add_match
 # - change the tools to touch DB to use MCP
 # - add landing page with examples
 # - cleanup python parts of the code
-# - add chart component
 # - make this work:
     # Generate me a component with a table players from Hradec league and calculate the overall score per player using 3 different algorithms.
     # 1: Win/Loss Record
     # 2: Points Difference
     # 3: Points Scored / Conceded Ratio
+# - extract model versions
 
 STYLING_INSTRUCTIONS_SECTION = """
             ## Styling Instructions
@@ -158,7 +158,7 @@ main_page_agent = Agent(
                     - Refer to the "Instructions Provided by Users Per Component" section, to get the default body values per component ID. If this section is not present, use the following defaults:
                     - The main section has a single stack of 2 components
                         - the first component has a body: "Generate me a component with a table of matches from the brno league containing the name of both players and their scores. First two columns are the player names, last two the scores. Make sure to add an add new match component."
-                        - the second component has a body: "Generate me a component with a fun fact about cats."
+                        - the second component has a body: "Generate me a component with a pie chart loading data from the matches from Brno league and visualizing the sum of scores per player. Post process the raw result from the get_matches tool so that: You will always sum up all the scores per player. You will never return the same player more than once."
 
 {STYLING_INSTRUCTIONS_SECTION}
         """
@@ -180,29 +180,31 @@ data_loader_agent = Agent(
         """
             You are a specialized agent designed to load data using available tools.
 
-            **Available Tools:** `[get_matches]`
+            ## Available Tools:
+                - For loading the data, you have to call one of the following tools: [get_matches]. 
             
-            **Input Format:**
-            Your input will always be a JSON object with the following structure:
+            ## Input Format:
+                - Your input will always be a JSON object with the following structure:
+                
+                {
+                    "request": "load data",
+                    "source": "matches_database",
+                    "format": "JSON", 
+                    "output_format": [
+                        {
+                            "name": "userName1",
+                            "age": "userAge1"
+                        },
+                        {
+                            "name": "userName2",
+                            "age": "userAge2"
+                        },
+                    ]
+                }
             
-            {
-                "request": "load data",
-                "source": "matches_database",
-                "format": "JSON", 
-                "output_format": [
-                    {
-                        "name": "userName1",
-                        "age": "userAge1"
-                    },
-                    {
-                        "name": "userName2",
-                        "age": "userAge2"
-                    },
-                ]
-            }
-            
-            **Output Format:**
-            Your output will always be a JSON array with the structure following the output_format from the input.
+            ## Output Format:
+                - Your output will always be a JSON array with the structure following the output_format from the input.
+                - Convert the output from the get_matches tool to conform to the output_format requested.
         """
     ),
     after_model_callback=clear_technical_response,
@@ -225,44 +227,101 @@ tabular_data_visualization_agent = Agent(
             ## Output Format:
                 - Your output MUST be raw HTML, directly renderable by a web browser.
                 - DO NOT include any conversational text, explanations, or extraneous characters outside the HTML structure.
-                - If no table generation is requested, return the literal string `NO_TABULAR_DATA`.
+                - If no table generation is requested, return the literal string `NO_CONTENT`.
             
             ## Table Generation Rules:
-            ### Data Loading:
-                - Data MUST be loaded asynchronously via a `POST` request to the `/api` endpoint. 
-                - Generate a <script> tag which uses XHR to load the data.
-                - Make sure this script will load call the server right after this component is done rendering.
-                - Never add an ADD button to the component. 
-                - Add a reload button. If clicked, the same server call will be executed loading the data again.
-                - The `POST` request body MUST be a JSON object specifying:
-                    - `request`: "load data",
-                    - `source`: (string) The origin or identifier of the data.
-                    - `format`: (string) The desired data format (e.g., 'JSON', 'CSV').
-                    - `output_format`: (object) The output structure the table generated by you can process. For instance, to get a list of users, the structure would be `[{{'name': 'userName', 'age': 'userAge'}}]`.
-                - While data is loading, display a prominent loading indicator within the table structure.
-            
-            ## Example Request Body for Data Loading:
-            {{
-                "request": "load data",
-                "source": "users_database",
-                "format": "JSON",
-                "output_format": [
-                    {{
-                        "name": "userName1",
-                        "age": "userAge1"
-                    }},
-                    {{
-                        "name": "userName2",
-                        "age": "userAge2"
-                    }},
-                ]
-            }}
+                ### Data Loading:
+                    - Data MUST be loaded asynchronously via a `POST` request to the `/api` endpoint. 
+                    - Generate a <script> tag which uses XHR to load the data.
+                    - Make sure this script will call the server right after this component is done rendering.
+                    - Never add an ADD button to the component. 
+                    - Add a reload button. If clicked, the same server call will be executed loading the data again.
+                    - The `POST` request body MUST be a JSON object specifying:
+                        - `request`: "load data",
+                        - `source`: (string) The origin or identifier of the data.
+                        - `format`: (string) The desired data format (e.g., 'JSON', 'CSV').
+                        - `output_format`: (object) The output structure the table generated by you can process. For instance, to get a list of users, the structure would be `[{{'name': 'userName', 'age': 'userAge'}}]`.
+                    - While data is loading, display a prominent loading indicator within the table structure.
+                
+                ### Example Request Body for Data Loading:
+                {{
+                    "request": "load data",
+                    "source": "users_database",
+                    "format": "JSON",
+                    "output_format": [
+                        {{
+                            "name": "userName1",
+                            "age": "userAge1"
+                        }},
+                        {{
+                            "name": "userName2",
+                            "age": "userAge2"
+                        }},
+                    ]
+                }}
             
 {STYLING_INSTRUCTIONS_SECTION}
         """
     ),
     after_model_callback=clear_technical_response,
     output_key="tabular_data_visualization_agent_output"
+)
+
+chart_data_visualization_agent = Agent(
+    name="chart_data_visualization_agent",
+    model="gemini-2.5-flash-preview-04-17",
+    generate_content_config=GenerateContentConfig(
+        temperature=0,
+    ),
+    description=(
+        "Agent to generate an HTML chart with data."
+    ),
+    instruction=(
+        f"""
+            You are a specialized agent designed to generate visually impressive charts.
+
+            ## Output Format:
+                - Your output MUST be raw HTML, directly renderable by a web browser.
+                - DO NOT include any conversational text, explanations, or extraneous characters outside the HTML structure.
+                - If no chart generation is requested, return the literal string `NO_CONTENT`.
+            
+            ## Chart Generation Rules:
+                ### Data Loading:
+                    - Data MUST be loaded asynchronously via a `POST` request to the `/api` endpoint. 
+                    - Generate a <script> tag which uses XHR to load the data.
+                    - Make sure this script will call the server right after this component is done rendering.
+                    - Never add an ADD button to the component. 
+                    - Add a reload button. If clicked, the same server call will be executed loading the data again.
+                    - The `POST` request body MUST be a JSON object specifying:
+                        - `request`: "load data",
+                        - `source`: (string) The origin or identifier of the data.
+                        - `format`: (string) The desired data format (e.g., 'JSON', 'CSV').
+                        - `output_format`: (object) The output structure the chart generated by you can process. For instance, to get a list of users, the structure would be `[{{'name': 'userName', 'age': 'userAge'}}]`.
+                    - While data is loading, display a prominent loading indicator within the chart structure.
+                    - Once the data is loaded, show the chart visualizing the date returned from the server. 
+            
+                ### Example Request Body for Data Loading:
+                {{
+                    "request": "load data",
+                    "source": "users_database",
+                    "format": "JSON",
+                    "output_format": [
+                        {{
+                            "name": "userName1",
+                            "age": "userAge1"
+                        }},
+                        {{
+                            "name": "userName2",
+                            "age": "userAge2"
+                        }},
+                    ]
+                }}
+            
+{STYLING_INSTRUCTIONS_SECTION}
+        """
+    ),
+    after_model_callback=clear_technical_response,
+    output_key="chart_data_visualization_agent_output"
 )
 
 add_data_to_table_agent = Agent(
@@ -278,7 +337,7 @@ add_data_to_table_agent = Agent(
         """
             You are an agent which generates an html form to add a match to the list.
             
-            If there is no request to generate an add new match component or form, return NO_ADD_COMPONENT.
+            If there is no request to generate an add new match component or form, return NO_CONTENT.
             
             If there is a request to generate an add new match component or form, follow the instructions below.
             # Basic Behavior
@@ -308,7 +367,6 @@ add_data_to_table_agent = Agent(
     after_model_callback=clear_technical_response,
     output_key="add_data_agent_output"
 )
-
 component_page_merger_agent = Agent(
     name="component_page_merger_agent",
     model="gemini-2.5-flash-preview-04-17",
@@ -326,9 +384,10 @@ component_page_merger_agent = Agent(
                 - Your output will be directly interpreted by a browser so dont include any explanation or any additional text around the HTML content.
                 - Do add additional content based on the user prompt.
                 - If the input contains a request to generate tabular data, add the {{tabular_data_visualization_agent_output}} to your output.
-                - If the input contains a request to an add add new match component or form, add the {{add_data_agent_output}} to your output.                 
+                - If the input contains a request to generate a chart, add the {{chart_data_visualization_agent_output}} to your output.
+                - If the input contains a request to add a new match component or form, add the {{add_data_agent_output}} to your output.         
                 - If the request did not contain any of the two above requests, ignore the output from the previous agents and generate your output directly.
-                - Never add the string "NO_ADD_COMPONENT" nor "NO_TABULAR_DATA" directly to the output
+                - Never add the string "NO_CONTENT" directly to the output
             
 {STYLING_INSTRUCTIONS_SECTION}
         """
@@ -336,11 +395,13 @@ component_page_merger_agent = Agent(
     after_model_callback=clear_technical_response,
 )
 
+
 component_parallel_sub_agents = ParallelAgent(
     name="component_parallel_sub_agents",
     sub_agents=[
         tabular_data_visualization_agent,
-        add_data_to_table_agent
+        chart_data_visualization_agent,
+        add_data_to_table_agent,
     ],
     description="Gets the user input and calls all sub agents in parallel to generate their portion of the output."
 )

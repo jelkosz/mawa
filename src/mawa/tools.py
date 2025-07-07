@@ -12,9 +12,16 @@ mock_matches_data = {
             },
             {
                 "id": "match_id2",
-                "player1": "Eso Tom",
-                "player1_score": "10",
+                "player1": "Tom",
+                "player1_score": "0",
                 "player2": "Hovezi Gulas",
+                "player2_score": "9",
+            },
+            {
+                "id": "match_id3",
+                "player1": "Tom",
+                "player1_score": "1",
+                "player2": "Nakladany Hermelin",
                 "player2_score": "9",
             },
         ],
