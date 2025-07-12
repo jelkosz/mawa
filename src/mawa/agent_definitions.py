@@ -11,7 +11,6 @@ from mawa.mcp_tools_utils import load_mcp_tools
 # - extract variables which are injected
 # - add security agent
 # - add evals
-# - change the tools to touch DB to use MCP
 # - add landing page with examples
 # - cleanup python parts of the code
 
@@ -165,8 +164,9 @@ async def _create_main_page_agent():
             
                 ## Default Main Section Layout
                     - Refer to the "Instructions Provided by Users Per Component" section, to get the default body values per component ID. If this section is not present, use the following defaults:
-                    - The main section has a single stack of 1 component
+                    - The main section has a single stack of 2 components
                         - the first component has a body: "Generate me a component with a table of matches from the brno league containing the name of both players and their scores. First two columns are the player names, last two the scores. Make sure to add an add new match component."
+                        - the second component has a body: "Generate me a component with a pie chart loading data from the matches from Brno league and visualizing the sum of scores per player. Post process the raw result from the get_matches tool so that: You will always sum up all the scores per player. You will never return the same player more than once."
 
 {STYLING_INSTRUCTIONS_SECTION}
         """
@@ -174,8 +174,6 @@ async def _create_main_page_agent():
         before_model_callback=inject_stored_component_ids,
         after_model_callback=clear_technical_response,
     )
-
-# - the second component has a body: "Generate me a component with a pie chart loading data from the matches from Brno league and visualizing the sum of scores per player. Post process the raw result from the get_matches tool so that: You will always sum up all the scores per player. You will never return the same player more than once."
 
 async def _create_data_loader_agent():
     tools = await load_mcp_tools()
