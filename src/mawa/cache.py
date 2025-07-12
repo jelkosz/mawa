@@ -1,7 +1,6 @@
 from diskcache import Cache
 import hashlib
 
-# Initialize the cache. The 'cache_dir' is where the files will be stored.
 cache = Cache('/tmp/mawacache')
 
 def store_to_cache(key, value):

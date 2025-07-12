@@ -12,10 +12,10 @@ from mawa.tools import get_matches, add_match
 # - add landing page with examples
 # - cleanup python parts of the code
 # - make this work:
-    # Generate me a component with a table players from Hradec league and calculate the overall score per player using 3 different algorithms.
-    # 1: Win/Loss Record
-    # 2: Points Difference
-    # 3: Points Scored / Conceded Ratio
+# Generate me a component with a table players from Hradec league and calculate the overall score per player using 3 different algorithms.
+# 1: Win/Loss Record
+# 2: Points Difference
+# 3: Points Scored / Conceded Ratio
 # - extract model versions
 
 STYLING_INSTRUCTIONS_SECTION = """
@@ -24,9 +24,15 @@ STYLING_INSTRUCTIONS_SECTION = """
                 - Always follow the following styling instructions: {styling_instructions}
 """
 
+STRICT_AGENT_TEMPERATURE = 0.0
+CREATIVE_AGENT_TEMPERATURE = 1.5
+
 style_extraction_agent = Agent(
     name="style_extraction_agent",
     model="gemini-2.5-flash-preview-04-17",
+    generate_content_config=GenerateContentConfig(
+        temperature=CREATIVE_AGENT_TEMPERATURE,
+    ),
     description=(
         "Agent to generate clear styling instructions from vague user description."
     ),
@@ -51,7 +57,7 @@ main_page_agent = Agent(
     name="main_page_agent",
     model="gemini-2.0-flash",
     generate_content_config=GenerateContentConfig(
-        temperature=0,
+        temperature=STRICT_AGENT_TEMPERATURE,
     ),
     description=(
         "Agent to generate the main html page of the document."
@@ -171,7 +177,7 @@ data_loader_agent = Agent(
     name="data_loader_agent",
     model="gemini-2.0-flash-lite",
     generate_content_config=GenerateContentConfig(
-        temperature=0,
+        temperature=STRICT_AGENT_TEMPERATURE,
     ),
     description=(
         "Agent loading data from a datasource."
@@ -215,7 +221,7 @@ tabular_data_visualization_agent = Agent(
     name="tabular_data_visualization_agent",
     model="gemini-2.5-flash-preview-04-17",
     generate_content_config=GenerateContentConfig(
-        temperature=0,
+        temperature=STRICT_AGENT_TEMPERATURE,
     ),
     description=(
         "Agent to generate an HTML table with data."
@@ -271,7 +277,7 @@ chart_data_visualization_agent = Agent(
     name="chart_data_visualization_agent",
     model="gemini-2.5-flash-preview-04-17",
     generate_content_config=GenerateContentConfig(
-        temperature=0,
+        temperature=STRICT_AGENT_TEMPERATURE,
     ),
     description=(
         "Agent to generate an HTML chart with data."
@@ -328,7 +334,7 @@ add_data_to_table_agent = Agent(
     name="add_data_agent",
     model="gemini-2.5-flash-preview-04-17",
     generate_content_config=GenerateContentConfig(
-        temperature=0,
+        temperature=STRICT_AGENT_TEMPERATURE,
     ),
     description=(
         "Agent to generate an HTML form to add new data."
@@ -371,7 +377,7 @@ component_page_merger_agent = Agent(
     name="component_page_merger_agent",
     model="gemini-2.5-flash-preview-04-17",
     generate_content_config=GenerateContentConfig(
-        temperature=0,
+        temperature=STRICT_AGENT_TEMPERATURE,
     ),
     description=(
         "Agent to generate the component html."
@@ -395,7 +401,6 @@ component_page_merger_agent = Agent(
     after_model_callback=clear_technical_response,
 )
 
-
 component_parallel_sub_agents = ParallelAgent(
     name="component_parallel_sub_agents",
     sub_agents=[
@@ -416,7 +421,7 @@ data_saver_agent = Agent(
     name="data_saver_agent",
     model="gemini-2.5-flash-preview-04-17",
     generate_content_config=GenerateContentConfig(
-        temperature=0,
+        temperature=STRICT_AGENT_TEMPERATURE,
     ),
     description=(
         "An agent which can store data to the server."
@@ -453,7 +458,7 @@ root_agent = Agent(
     name="generic_webpage_root_agent",
     model="gemini-2.0-flash",
     generate_content_config=GenerateContentConfig(
-        temperature=0,
+        temperature=STRICT_AGENT_TEMPERATURE,
     ),
     description=(
         "Root agent delegating to appropriate agents."
@@ -479,6 +484,9 @@ root_agent = Agent(
 cache_decision_agent = Agent(
     name="cache_decision_agent",
     model="gemini-2.0-flash-lite",
+    generate_content_config=GenerateContentConfig(
+        temperature=STRICT_AGENT_TEMPERATURE,
+    ),
     description=(
         "Agent deciding, if the result should be stored to cache / loaded from cache or calculated live"
     ),
