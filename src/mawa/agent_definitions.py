@@ -1,8 +1,11 @@
+import asyncio
+
 from google.adk.agents import Agent, ParallelAgent, SequentialAgent
-from google.genai.types import GenerateContentConfig
+from google.adk.planners import BuiltInPlanner
+from google.genai.types import GenerateContentConfig, ThinkingConfigDict, ThinkingConfig
 
 from mawa.callbacks import clear_technical_response, inject_stored_component_ids, load_from_cache
-from mawa.tools import get_matches, add_match
+from mawa.mcp_tools_utils import load_mcp_tools
 
 # TODOs:
 # - extract variables which are injected
@@ -11,12 +14,6 @@ from mawa.tools import get_matches, add_match
 # - change the tools to touch DB to use MCP
 # - add landing page with examples
 # - cleanup python parts of the code
-# - make this work:
-# Generate me a component with a table players from Hradec league and calculate the overall score per player using 3 different algorithms.
-# 1: Win/Loss Record
-# 2: Points Difference
-# 3: Points Scored / Conceded Ratio
-# - extract model versions
 
 STYLING_INSTRUCTIONS_SECTION = """
             ## Styling Instructions
@@ -26,44 +23,50 @@ STYLING_INSTRUCTIONS_SECTION = """
 
 STRICT_AGENT_TEMPERATURE = 0.0
 CREATIVE_AGENT_TEMPERATURE = 1.5
+MODEL_FULL = "gemini-2.5-flash"
+MODEL_LITE = "gemini-2.0-flash-lite"
+NOT_THINKING_MODEL = "gemini-1.5-flash"
 
-style_extraction_agent = Agent(
-    name="style_extraction_agent",
-    model="gemini-2.5-flash-preview-04-17",
-    generate_content_config=GenerateContentConfig(
-        temperature=CREATIVE_AGENT_TEMPERATURE,
-    ),
-    description=(
-        "Agent to generate clear styling instructions from vague user description."
-    ),
-    instruction=(
-        """
-            You are an agent which generates clear instructions for other LLM agents to style their components.
-            Your input is a vague description by the human user about the expected style.
-            Your output is an un-ambiguous set of LLM processable instructions on how to style its HTML components.
-            
-            ## Follow the following rules:
-                - While generating the instructions, dont generate actual HTML.
-                - Never recommend using external styling. 
-                - Always add specific un-ambiguous instructions about colors, fonts, border styles and background colors.
-                - Make the instructions one paragraphs long.
-                - Never use terms like: "such as", "or similar" etc since they introduce ambiguity.
-                - Add instructions for how to behave in case of this instructions dont contain the description explicitely. 
-        """
-    ),
-)
+async def _create_style_extraction_agent():
+    return Agent(
+        name="style_extraction_agent",
+        model=MODEL_FULL,
+        generate_content_config=GenerateContentConfig(
+            temperature=CREATIVE_AGENT_TEMPERATURE,
+        ),
+        description=(
+            "Agent to generate clear styling instructions from vague user description."
+        ),
+        instruction=(
+            """
+                You are an agent which generates clear instructions for other LLM agents to style their components.
+                Your input is a vague description by the human user about the expected style.
+                Your output is an un-ambiguous set of LLM processable instructions on how to style its HTML components.
+                
+                ## Follow the following rules:
+                    - While generating the instructions, dont generate actual HTML.
+                    - Never recommend using external styling. 
+                    - Always add specific un-ambiguous instructions about colors, fonts, border styles and background colors.
+                    - Make the instructions one paragraphs long.
+                    - Never use terms like: "such as", "or similar" etc since they introduce ambiguity.
+                    - Add instructions for how to behave in case of this instructions dont contain the description explicitely. 
+            """
+        ),
+    )
 
-main_page_agent = Agent(
-    name="main_page_agent",
-    model="gemini-2.0-flash",
-    generate_content_config=GenerateContentConfig(
-        temperature=STRICT_AGENT_TEMPERATURE,
-    ),
-    description=(
-        "Agent to generate the main html page of the document."
-    ),
-    instruction=(
-        f"""
+
+async def _create_main_page_agent():
+    return Agent(
+        name="main_page_agent",
+        model="gemini-2.0-flash",
+        generate_content_config=GenerateContentConfig(
+            temperature=STRICT_AGENT_TEMPERATURE,
+        ),
+        description=(
+            "Agent to generate the main html page of the document."
+        ),
+        instruction=(
+            f"""
             You are an agent which generates a simple HTML page. Always generate a HTML page with head and body.
             Your output will be directly interpreted by a browser so don't include any explanation or any additional text around the HTML content.
             Do add additional components based on the user prompt.
@@ -162,72 +165,79 @@ main_page_agent = Agent(
             
                 ## Default Main Section Layout
                     - Refer to the "Instructions Provided by Users Per Component" section, to get the default body values per component ID. If this section is not present, use the following defaults:
-                    - The main section has a single stack of 2 components
+                    - The main section has a single stack of 1 component
                         - the first component has a body: "Generate me a component with a table of matches from the brno league containing the name of both players and their scores. First two columns are the player names, last two the scores. Make sure to add an add new match component."
-                        - the second component has a body: "Generate me a component with a pie chart loading data from the matches from Brno league and visualizing the sum of scores per player. Post process the raw result from the get_matches tool so that: You will always sum up all the scores per player. You will never return the same player more than once."
 
 {STYLING_INSTRUCTIONS_SECTION}
         """
-    ),
-    before_model_callback=inject_stored_component_ids,
-    after_model_callback=clear_technical_response,
-)
+        ),
+        before_model_callback=inject_stored_component_ids,
+        after_model_callback=clear_technical_response,
+    )
 
-data_loader_agent = Agent(
-    name="data_loader_agent",
-    model="gemini-2.0-flash-lite",
-    generate_content_config=GenerateContentConfig(
-        temperature=STRICT_AGENT_TEMPERATURE,
-    ),
-    description=(
-        "Agent loading data from a datasource."
-    ),
-    instruction=(
-        """
-            You are a specialized agent designed to load data using available tools.
+# - the second component has a body: "Generate me a component with a pie chart loading data from the matches from Brno league and visualizing the sum of scores per player. Post process the raw result from the get_matches tool so that: You will always sum up all the scores per player. You will never return the same player more than once."
 
-            ## Available Tools:
-                - For loading the data, you have to call one of the following tools: [get_matches]. 
-            
-            ## Input Format:
-                - Your input will always be a JSON object with the following structure:
-                
-                {
-                    "request": "load data",
-                    "source": "matches_database",
-                    "format": "JSON", 
-                    "output_format": [
-                        {
-                            "name": "userName1",
-                            "age": "userAge1"
-                        },
-                        {
-                            "name": "userName2",
-                            "age": "userAge2"
-                        },
-                    ]
-                }
-            
-            ## Output Format:
-                - Your output will always be a JSON array with the structure following the output_format from the input.
-                - Convert the output from the get_matches tool to conform to the output_format requested.
-        """
-    ),
-    after_model_callback=clear_technical_response,
-    tools=[get_matches],
-)
+async def _create_data_loader_agent():
+    tools = await load_mcp_tools()
 
-tabular_data_visualization_agent = Agent(
-    name="tabular_data_visualization_agent",
-    model="gemini-2.5-flash-preview-04-17",
-    generate_content_config=GenerateContentConfig(
-        temperature=STRICT_AGENT_TEMPERATURE,
-    ),
-    description=(
-        "Agent to generate an HTML table with data."
-    ),
-    instruction=(
-        f"""
+    return Agent(
+        name="data_loader_agent",
+        model=NOT_THINKING_MODEL,
+        generate_content_config=GenerateContentConfig(
+            temperature=STRICT_AGENT_TEMPERATURE,
+        ),
+        description=(
+            "Agent loading data from a datasource."
+        ),
+        instruction=(
+            """
+                You are a specialized agent designed to load data using available tools.
+
+                ## Available Tools:
+                    - For loading the data, you have to call one of the following tools: [get_matches].            
+
+                ## Input Format:
+                    - Your input will always be a JSON object with the following structure:
+
+                    {
+                        "request": "load data",
+                        "source": "matches_database",
+                        "format": "JSON", 
+                        "output_format": [
+                            {
+                                "name": "userName1",
+                                "age": "userAge1"
+                            },
+                            {
+                                "name": "userName2",
+                                "age": "userAge2"
+                            },
+                        ]
+                    }
+
+                ## Output Format:
+                    - Your output will always be a JSON array with the structure following the output_format from the input.
+                    - Convert the output from the get_matches tool to conform to the output_format requested.
+            """
+        ),
+        after_model_callback=clear_technical_response,
+
+        tools=tools
+    )
+
+
+async def _create_tabular_data_visualization_agent():
+    return Agent(
+        name="tabular_data_visualization_agent",
+        model=MODEL_FULL,
+        generate_content_config=GenerateContentConfig(
+            temperature=STRICT_AGENT_TEMPERATURE,
+        ),
+        description=(
+            "Agent to generate an HTML table with data."
+        ),
+        instruction=(
+            f"""
             You are a specialized agent designed to generate nicely formatted HTML tables.
 
             ## Output Format:
@@ -268,22 +278,24 @@ tabular_data_visualization_agent = Agent(
             
 {STYLING_INSTRUCTIONS_SECTION}
         """
-    ),
-    after_model_callback=clear_technical_response,
-    output_key="tabular_data_visualization_agent_output"
-)
+        ),
+        after_model_callback=clear_technical_response,
+        output_key="tabular_data_visualization_agent_output"
+    )
 
-chart_data_visualization_agent = Agent(
-    name="chart_data_visualization_agent",
-    model="gemini-2.5-flash-preview-04-17",
-    generate_content_config=GenerateContentConfig(
-        temperature=STRICT_AGENT_TEMPERATURE,
-    ),
-    description=(
-        "Agent to generate an HTML chart with data."
-    ),
-    instruction=(
-        f"""
+
+async def _create_chart_data_visualization_agent():
+    return Agent(
+        name="chart_data_visualization_agent",
+        model=MODEL_FULL,
+        generate_content_config=GenerateContentConfig(
+            temperature=STRICT_AGENT_TEMPERATURE,
+        ),
+        description=(
+            "Agent to generate an HTML chart with data."
+        ),
+        instruction=(
+            f"""
             You are a specialized agent designed to generate visually impressive charts.
 
             ## Output Format:
@@ -325,65 +337,76 @@ chart_data_visualization_agent = Agent(
             
 {STYLING_INSTRUCTIONS_SECTION}
         """
-    ),
-    after_model_callback=clear_technical_response,
-    output_key="chart_data_visualization_agent_output"
-)
+        ),
+        after_model_callback=clear_technical_response,
+        output_key="chart_data_visualization_agent_output"
+    )
 
-add_data_to_table_agent = Agent(
-    name="add_data_agent",
-    model="gemini-2.5-flash-preview-04-17",
-    generate_content_config=GenerateContentConfig(
-        temperature=STRICT_AGENT_TEMPERATURE,
-    ),
-    description=(
-        "Agent to generate an HTML form to add new data."
-    ),
-    instruction=(
-        """
-            You are an agent which generates an html form to add a match to the list.
-            
-            If there is no request to generate an add new match component or form, return NO_CONTENT.
-            
-            If there is a request to generate an add new match component or form, follow the instructions below.
-            # Basic Behavior
-                - Do not generate the <html> <body> etc. Only generate a <div>, since this output will be embedded into a different component.
-                - Make sure this <div> can be embedded into other <div>s in the page.
-                - Inside of the <div> generate a <form> which contains data the user can fill.  
 
-            # The content and behavior of the form
-                - the content of the form is:
-                    - the league as a listbox containing Brno and Hradec.
-                    - Name of player 1
-                    - Score of player 1
-                    - Name of player 2
-                    - Score of player 2  
-                    - one buttons: save 
-                - give the save button an id with a prefix save_button and a random suffix to make it unique. For example: save_button_123
-                - add a javascript event listener to listen on click event of this save button. For example: document.getElementById("save_button_123").addEventListener("click", function() {});
-                - in the listener, call the /api endpoint with a body described in the "The body of the POST request". Use XHR to call the /api.
-                - while the server call is ongoing, display a prominent loading indicator in the form. Hide the loading indicator once the server call returns.
-                - once the server call returns, hide the loading indicator. Do not do any other action afterwards.
-            
-            # The body of the POST request
-                - The body will always begin with the text describing what the content of the request will be. For example: create a new match. 
-                - After this, a json will continue with the data. The json will encode all the data from the dialog form.
-        """
-    ),
-    after_model_callback=clear_technical_response,
-    output_key="add_data_agent_output"
-)
-component_page_merger_agent = Agent(
-    name="component_page_merger_agent",
-    model="gemini-2.5-flash-preview-04-17",
-    generate_content_config=GenerateContentConfig(
-        temperature=STRICT_AGENT_TEMPERATURE,
-    ),
-    description=(
-        "Agent to generate the component html."
-    ),
-    instruction=(
-        f"""
+async def _create_add_data_to_table_agent():
+    return Agent(
+        name="add_data_agent",
+        model=MODEL_FULL,
+        generate_content_config=GenerateContentConfig(
+            temperature=STRICT_AGENT_TEMPERATURE,
+        ),
+        planner=BuiltInPlanner(
+            thinking_config=ThinkingConfig(
+                include_thoughts=False,
+                thinking_budget=0
+            )
+        ),
+        description=(
+            "Agent to generate an HTML form to add new data."
+        ),
+        instruction=(
+            """
+                You are an agent which generates an html form to add a match to the list.
+                
+                If there is no request to generate an add new match component or form, return NO_CONTENT.
+                
+                If there is a request to generate an add new match component or form, follow the instructions below.
+                # Basic Behavior
+                    - Do not generate the <html> <body> etc. Only generate a <div>, since this output will be embedded into a different component.
+                    - Make sure this <div> can be embedded into other <div>s in the page.
+                    - Inside of the <div> generate a <form> which contains data the user can fill.  
+    
+                # The content and behavior of the form
+                    - the content of the form is:
+                        - the league as a listbox containing Brno and Hradec.
+                        - Name of player 1
+                        - Score of player 1
+                        - Name of player 2
+                        - Score of player 2  
+                        - one buttons: save 
+                    - give the save button an id with a prefix save_button and a random suffix to make it unique. For example: save_button_123
+                    - add a javascript event listener to listen on click event of this save button. For example: document.getElementById("save_button_123").addEventListener("click", function() {});
+                    - in the listener, call the /api endpoint with a body described in the "The body of the POST request". Use XHR to call the /api.
+                    - while the server call is ongoing, display a prominent loading indicator in the form. Hide the loading indicator once the server call returns.
+                    - once the server call returns, hide the loading indicator. Do not do any other action afterwards.
+                
+                # The body of the POST request
+                    - The body will always begin with the text describing what the content of the request will be. For example: create a new match. 
+                    - After this, a json will continue with the data. The json will encode all the data from the dialog form.
+            """
+        ),
+        after_model_callback=clear_technical_response,
+        output_key="add_data_agent_output"
+    )
+
+
+async def _create_component_page_merger_agent():
+    return Agent(
+        name="component_page_merger_agent",
+        model=MODEL_FULL,
+        generate_content_config=GenerateContentConfig(
+            temperature=STRICT_AGENT_TEMPERATURE,
+        ),
+        description=(
+            "Agent to generate the component html."
+        ),
+        instruction=(
+            f"""
             You are an agent which generates an HTML div with content.
             
             ## Follow the following rules:
@@ -397,116 +420,135 @@ component_page_merger_agent = Agent(
             
 {STYLING_INSTRUCTIONS_SECTION}
         """
-    ),
-    after_model_callback=clear_technical_response,
-)
+        ),
+        after_model_callback=clear_technical_response,
+    )
 
-component_parallel_sub_agents = ParallelAgent(
-    name="component_parallel_sub_agents",
-    sub_agents=[
-        tabular_data_visualization_agent,
-        chart_data_visualization_agent,
-        add_data_to_table_agent,
-    ],
-    description="Gets the user input and calls all sub agents in parallel to generate their portion of the output."
-)
 
-component_page_agent = SequentialAgent(
-    name="component_page_agent",
-    sub_agents=[component_parallel_sub_agents, component_page_merger_agent],
-    description="Coordinates parallel research and synthesizes the results."
-)
+async def _create_component_parallel_sub_agents():
+    return ParallelAgent(
+        name="component_parallel_sub_agents",
+        sub_agents=[
+            await _create_tabular_data_visualization_agent(),
+            await _create_chart_data_visualization_agent(),
+            await _create_add_data_to_table_agent(),
+        ],
+        description="Gets the user input and calls all sub agents in parallel to generate their portion of the output."
+    )
 
-data_saver_agent = Agent(
-    name="data_saver_agent",
-    model="gemini-2.5-flash-preview-04-17",
-    generate_content_config=GenerateContentConfig(
-        temperature=STRICT_AGENT_TEMPERATURE,
-    ),
-    description=(
-        "An agent which can store data to the server."
-    ),
-    instruction=(
-        """
-        You are an agent storing data to server.
-        For storing data, you have to call one of the following tools: [add_match].
-        The input provided to you will be a prefix like "create a new match" and a json encoded string. Always convert the json encoded string to the input parameters of the tool you will be using.
-        Your output will be a json containing a status and an optional message. The status will either be "success" or "error".
-        Example input:
-        - create a new match: {
-                "id": "match_id3",
-                "player1": "Pecene",
-                "player1_score": "10",
-                "player2": "Kure",
-                "player2_score": "4",
-            }
-        Examples output:
-        - {"status": "success", "message": "data saved successfully"}
-        - {"status": "error", "message": "the provided parameters can not be translated to the tool add_match I need to be calling"}
-        
-        
-        If you wont know how to convert the input json into parameters of the tool, return an error describing the issue.
-        If the tool will end with an error, return an error and pass the message from the tool to your output json.
-        The only success case is, if the tool has been successfully called. Never return success without attempting to call a tool.
-        """
-    ),
-    tools=[add_match],
-    after_model_callback=clear_technical_response,
-)
 
-root_agent = Agent(
-    name="generic_webpage_root_agent",
-    model="gemini-2.0-flash",
-    generate_content_config=GenerateContentConfig(
-        temperature=STRICT_AGENT_TEMPERATURE,
-    ),
-    description=(
-        "Root agent delegating to appropriate agents."
-    ),
-    instruction=(
-        """
-        You are router agent delegating work to different agents. In case the answer is an HTML, do not interpret it further and just return it as-is.
-        Always delegate the request to the appropriate agent. For example:
-         - if the request asks for a component, delegate to component_page_agent
-         - if the request asks for creating, storing or saving data, delegate to data_saver_agent
-         - in other cases, delegate to the main_page_agent
-        """
-    ),
-    sub_agents=[
-        main_page_agent,
-        component_page_agent,
-        data_loader_agent,
-        data_saver_agent,
-    ],
-    before_model_callback=load_from_cache,
-)
+async def _create_component_page_agent():
+    return SequentialAgent(
+        name="component_page_agent",
+        sub_agents=[
+            await _create_component_parallel_sub_agents(),
+            await _create_component_page_merger_agent()
+        ],
+        description="Coordinates parallel research and synthesizes the results."
+    )
 
-cache_decision_agent = Agent(
-    name="cache_decision_agent",
-    model="gemini-2.0-flash-lite",
-    generate_content_config=GenerateContentConfig(
-        temperature=STRICT_AGENT_TEMPERATURE,
-    ),
-    description=(
-        "Agent deciding, if the result should be stored to cache / loaded from cache or calculated live"
-    ),
-    instruction=(
-        """
-        You are an agent determining if a user's request requires live calculation or can be served from cache.
 
-        * **LIVE** if the request involves **loading, storing, or editing data**.
-        * **CACHE** if the request involves **rendering a page or component**.
-        * If the user explicitly states "always calculate" or similar, output **LIVE**.
-        * If the user explicitly states "cache" or similar, output **CACHE**.
-        
-        Return only 'LIVE' or 'CACHE'.
-        """
-    ),
-    output_key="cache_decision_agent_output"
-)
+async def _create_data_saver_agent():
+    tools = await load_mcp_tools()
 
-main_agent = SequentialAgent(
-    name="main_agent",
-    sub_agents=[cache_decision_agent, root_agent],
-    description="Decides if to return the result from cache or live. Than proceeds to load or calculate the result."
-)
+    return Agent(
+        name="data_saver_agent",
+        model=NOT_THINKING_MODEL,
+        generate_content_config=GenerateContentConfig(
+            temperature=STRICT_AGENT_TEMPERATURE,
+        ),
+        description=(
+            "An agent which can store data to the server."
+        ),
+        instruction=(
+            """
+            You are an agent storing data to server.
+            For storing data, you have to call one of the following tools: [add_match].
+            The input provided to you will be a prefix like "create a new match" and a json encoded string. Always convert the json encoded string to the input parameters of the tool you will be using.
+            Your output will be a json containing a status and an optional message. The status will either be "success" or "error".
+            Example input:
+            - create a new match: {
+                    "id": "match_id3",
+                    "player1": "Pecene",
+                    "player1_score": "10",
+                    "player2": "Kure",
+                    "player2_score": "4",
+                }
+            Expected output:
+            - {"status": "success"}
+            - {"status": "error", "message": "the provided parameters can not be translated to the tool add_match I need to be calling"}
+            
+            
+            If you wont know how to convert the input json into parameters of the tool, return an error describing the issue.
+            If the tool will end with an error, return an error and pass the message from the tool to your output json.
+            The only success case is, if the tool has been successfully called. Never return success without attempting to call a tool.
+            """
+        ),
+        after_model_callback=clear_technical_response,
+        tools=tools,
+    )
+
+
+async def _create_root_agent():
+    return Agent(
+        name="generic_webpage_root_agent",
+        model="gemini-2.0-flash",
+        generate_content_config=GenerateContentConfig(
+            temperature=STRICT_AGENT_TEMPERATURE,
+        ),
+        description=(
+            "Root agent delegating to appropriate agents."
+        ),
+        instruction=(
+            """
+            You are router agent delegating work to different agents. In case the answer is an HTML, do not interpret it further and just return it as-is.
+            Always delegate the request to the appropriate agent. For example:
+             - if the request asks for a component, delegate to component_page_agent
+             - if the request asks for creating, storing or saving data, delegate to data_saver_agent
+             - in other cases, delegate to the main_page_agent
+            """
+        ),
+        sub_agents=[
+            await _create_main_page_agent(),
+            await _create_component_page_agent(),
+            await _create_data_loader_agent(),
+            await _create_data_saver_agent(),
+        ],
+        before_model_callback=load_from_cache,
+    )
+
+
+async def _create_cache_decision_agent():
+    return Agent(
+        name="cache_decision_agent",
+        model=MODEL_LITE,
+        generate_content_config=GenerateContentConfig(
+            temperature=STRICT_AGENT_TEMPERATURE,
+        ),
+        description=(
+            "Agent deciding, if the result should be stored to cache / loaded from cache or calculated live"
+        ),
+        instruction=(
+            """
+            You are an agent determining if a user's request requires live calculation or can be served from cache.
+    
+            * **LIVE** if the request involves **loading, storing, or editing data**.
+            * **CACHE** if the request involves **rendering a page or component**.
+            * If the user explicitly states "always calculate" or similar, output **LIVE**.
+            * If the user explicitly states "cache" or similar, output **CACHE**.
+    
+            Return only 'LIVE' or 'CACHE'.
+            """
+        ),
+        output_key="cache_decision_agent_output"
+    )
+
+async def create_main_agent():
+    return SequentialAgent(
+        name="main_agent",
+        sub_agents=[
+            await _create_cache_decision_agent(),
+            await _create_root_agent()
+        ],
+        description="Decides if to return the result from cache or live. Than proceeds to load or calculate the result."
+    )

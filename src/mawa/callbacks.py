@@ -10,7 +10,12 @@ from mawa.constants import ROOT_PROMPT
 def load_from_cache(
     callback_context: CallbackContext, llm_request: LlmRequest
 ) -> Optional[LlmResponse]:
-    cache_decision_agent_output = callback_context.state.get('cache_decision_agent_output').strip('\n')
+    cache_decision_agent_output = callback_context.state.get('cache_decision_agent_output')
+    if cache_decision_agent_output:
+        cache_decision_agent_output = cache_decision_agent_output.strip('\n')
+    else:
+        return None
+
     if cache_decision_agent_output == 'CACHE':
         root_prompt = get_from_cache(ROOT_PROMPT)
         key = root_prompt + callback_context.user_content.parts[0].text
@@ -88,7 +93,6 @@ def inject_stored_component_ids(
     if custom_component_prompts != "":
         original_instruction.parts[0].text = modified_text
 
-    llm_request.config.system_instruction = original_instruction
     return None
 
 # todo taken from claude without reviewing it, needs to be reviewed and cleaned up

@@ -1,0 +1,1 @@
+from adk_web_initialization import agent

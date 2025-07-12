@@ -19,7 +19,7 @@ def get_from_cache(key):
     """
     Retrieves a value from the file-based cache.
     """
-    return cache.get(key_to_hash(key))
+    return cache.get(key_to_hash(key))\
 
 def clear_from_cache(key):
     """
