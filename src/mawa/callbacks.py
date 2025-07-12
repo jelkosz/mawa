@@ -52,6 +52,9 @@ def clean_response_parts(cleaned_response):
     Returns:
         The modified cleaned_response object with cleaned text parts.
     """
+    if cleaned_response is None or cleaned_response.content is None or cleaned_response.content.parts is None:
+        return cleaned_response
+
     for part in cleaned_response.content.parts:
         if part.text is None:
             continue

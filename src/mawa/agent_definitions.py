@@ -294,7 +294,7 @@ async def _create_chart_data_visualization_agent():
         ),
         instruction=(
             f"""
-            You are a specialized agent designed to generate visually impressive charts.
+            You are a specialized agent designed to generate visually nice charts.
 
             ## Output Format:
                 - Your output MUST be raw HTML, directly renderable by a web browser.
