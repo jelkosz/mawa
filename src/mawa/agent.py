@@ -1,11 +1,12 @@
-import asyncio
+import os
 
 from google.adk.agents import Agent, ParallelAgent, SequentialAgent
 from google.adk.planners import BuiltInPlanner
-from google.genai.types import GenerateContentConfig, ThinkingConfigDict, ThinkingConfig
+from google.adk.tools.mcp_tool import MCPToolset
+from google.genai.types import GenerateContentConfig, ThinkingConfig
+from mcp import StdioServerParameters
 
 from mawa.callbacks import clear_technical_response, inject_stored_component_ids, load_from_cache
-from mawa.mcp_tools_utils import load_mcp_tools
 
 # TODOs:
 # - extract variables which are injected
@@ -13,6 +14,7 @@ from mawa.mcp_tools_utils import load_mcp_tools
 # - add evals
 # - add landing page with examples
 # - cleanup python parts of the code
+# - replace prints by logs (or just remove them if they are not giving value, lets check)
 
 STYLING_INSTRUCTIONS_SECTION = """
             ## Styling Instructions
@@ -26,7 +28,20 @@ MODEL_FULL = "gemini-2.5-flash"
 MODEL_LITE = "gemini-2.0-flash-lite"
 NOT_THINKING_MODEL = "gemini-1.5-flash"
 
-async def _create_style_extraction_agent():
+_data_provider_mcp_toolset = MCPToolset(
+    connection_params=StdioServerParameters(
+        command='poetry',
+        args=[
+            "run",
+            "mcp",
+            "run",
+            os.path.abspath("/home/jelene/work/mawa/src/mawa_mcp_server/data_provider.py")
+        ],
+    ),
+)
+
+
+def _create_style_extraction_agent():
     return Agent(
         name="style_extraction_agent",
         model=MODEL_FULL,
@@ -54,7 +69,7 @@ async def _create_style_extraction_agent():
     )
 
 
-async def _create_main_page_agent():
+def _create_main_page_agent():
     return Agent(
         name="main_page_agent",
         model="gemini-2.0-flash",
@@ -175,8 +190,9 @@ async def _create_main_page_agent():
         after_model_callback=clear_technical_response,
     )
 
-async def _create_data_loader_agent():
-    tools = await load_mcp_tools()
+
+def _create_data_loader_agent():
+    # tools = await load_mcp_tools()
 
     return Agent(
         name="data_loader_agent",
@@ -220,11 +236,11 @@ async def _create_data_loader_agent():
         ),
         after_model_callback=clear_technical_response,
 
-        tools=tools
+        tools=[_data_provider_mcp_toolset]
     )
 
 
-async def _create_tabular_data_visualization_agent():
+def _create_tabular_data_visualization_agent():
     return Agent(
         name="tabular_data_visualization_agent",
         model=MODEL_FULL,
@@ -282,7 +298,7 @@ async def _create_tabular_data_visualization_agent():
     )
 
 
-async def _create_chart_data_visualization_agent():
+def _create_chart_data_visualization_agent():
     return Agent(
         name="chart_data_visualization_agent",
         model=MODEL_FULL,
@@ -341,7 +357,7 @@ async def _create_chart_data_visualization_agent():
     )
 
 
-async def _create_add_data_to_table_agent():
+def _create_add_data_to_table_agent():
     return Agent(
         name="add_data_agent",
         model=MODEL_FULL,
@@ -393,7 +409,7 @@ async def _create_add_data_to_table_agent():
     )
 
 
-async def _create_component_page_merger_agent():
+def _create_component_page_merger_agent():
     return Agent(
         name="component_page_merger_agent",
         model=MODEL_FULL,
@@ -423,31 +439,30 @@ async def _create_component_page_merger_agent():
     )
 
 
-async def _create_component_parallel_sub_agents():
+def _create_component_parallel_sub_agents():
     return ParallelAgent(
         name="component_parallel_sub_agents",
         sub_agents=[
-            await _create_tabular_data_visualization_agent(),
-            await _create_chart_data_visualization_agent(),
-            await _create_add_data_to_table_agent(),
+            _create_tabular_data_visualization_agent(),
+            _create_chart_data_visualization_agent(),
+            _create_add_data_to_table_agent(),
         ],
         description="Gets the user input and calls all sub agents in parallel to generate their portion of the output."
     )
 
-
-async def _create_component_page_agent():
+def _create_component_page_agent():
     return SequentialAgent(
         name="component_page_agent",
         sub_agents=[
-            await _create_component_parallel_sub_agents(),
-            await _create_component_page_merger_agent()
+            _create_component_parallel_sub_agents(),
+            _create_component_page_merger_agent()
         ],
         description="Coordinates parallel research and synthesizes the results."
     )
 
 
-async def _create_data_saver_agent():
-    tools = await load_mcp_tools()
+def _create_data_saver_agent():
+    # tools = await load_mcp_tools()
 
     return Agent(
         name="data_saver_agent",
@@ -483,11 +498,11 @@ async def _create_data_saver_agent():
             """
         ),
         after_model_callback=clear_technical_response,
-        tools=tools,
+        tools=[_data_provider_mcp_toolset],
     )
 
 
-async def _create_root_agent():
+def _create_root_agent():
     return Agent(
         name="generic_webpage_root_agent",
         model="gemini-2.0-flash",
@@ -507,16 +522,16 @@ async def _create_root_agent():
             """
         ),
         sub_agents=[
-            await _create_main_page_agent(),
-            await _create_component_page_agent(),
-            await _create_data_loader_agent(),
-            await _create_data_saver_agent(),
+            _create_main_page_agent(),
+            _create_component_page_agent(),
+            _create_data_loader_agent(),
+            _create_data_saver_agent(),
         ],
         before_model_callback=load_from_cache,
     )
 
 
-async def _create_cache_decision_agent():
+def _create_cache_decision_agent():
     return Agent(
         name="cache_decision_agent",
         model=MODEL_LITE,
@@ -541,12 +556,13 @@ async def _create_cache_decision_agent():
         output_key="cache_decision_agent_output"
     )
 
-async def create_main_agent():
+
+def create_main_agent():
     return SequentialAgent(
         name="main_agent",
         sub_agents=[
-            await _create_cache_decision_agent(),
-            await _create_root_agent()
+            _create_cache_decision_agent(),
+            _create_root_agent()
         ],
         description="Decides if to return the result from cache or live. Than proceeds to load or calculate the result."
     )

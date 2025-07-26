@@ -1,12 +1,13 @@
 from google.adk import Agent
 from google.genai.types import GenerateContentConfig
 
-from mawa.agent_definitions import STRICT_AGENT_TEMPERATURE, _create_component_page_agent, _create_data_loader_agent, \
+from mawa.agent import STRICT_AGENT_TEMPERATURE, _create_component_page_agent, _create_data_loader_agent, \
     _create_data_saver_agent
 from mawa.callbacks import load_from_cache
 
+# add mock version of the missing variable so that I can use the actual implementation
 
-async def create_adk_web_root_agent():
+def create_adk_web_root_agent():
     return Agent(
         name="generic_webpage_root_agent",
         model="gemini-2.0-flash",
@@ -26,9 +27,9 @@ async def create_adk_web_root_agent():
             """
         ),
         sub_agents=[
-            await _create_component_page_agent(),
-            await _create_data_loader_agent(),
-            await _create_data_saver_agent(),
+            _create_component_page_agent(),
+            _create_data_loader_agent(),
+            _create_data_saver_agent(),
         ],
         before_model_callback=load_from_cache,
     )

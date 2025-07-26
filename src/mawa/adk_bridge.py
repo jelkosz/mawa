@@ -5,9 +5,8 @@ from google.adk.sessions import InMemorySessionService, Session, State
 from google.adk.runners import Runner
 from google.genai import types
 import uuid
-from .agent_definitions import _create_style_extraction_agent, create_main_agent
+from .agent import _create_style_extraction_agent, create_main_agent
 from .cache import store_to_cache, key_to_hash, clear_from_cache, get_from_cache, is_cached
-from .callbacks import inject_stored_component_ids
 from .constants import ROOT_PROMPT
 
 APP_NAME = "Table Football App"
@@ -17,7 +16,7 @@ main_agent_session_service = InMemorySessionService()
 style_extraction_service = InMemorySessionService()
 
 
-def _store_styling_info_to_state(instructions: str, session: Session):
+async def _store_styling_info_to_state(instructions: str, session: Session):
     """
        Stores the detailed styling instructions extracted from user description to the state.
 
@@ -37,10 +36,10 @@ def _store_styling_info_to_state(instructions: str, session: Session):
         actions=actions_with_update,
         timestamp=current_time
     )
-    main_agent_session_service.append_event(session, system_event)
+    await main_agent_session_service.append_event(session, system_event)
 
 
-def _store_hashed_prompt_to_state(prompt: str, session: Session):
+async def _store_hashed_prompt_to_state(prompt: str, session: Session):
     """
        Stores the hash of the prompt to session state so that the agents can access it.
        It is meant to be used for cache invalidation
@@ -61,10 +60,10 @@ def _store_hashed_prompt_to_state(prompt: str, session: Session):
         actions=actions_with_update,
         timestamp=current_time
     )
-    main_agent_session_service.append_event(session, system_event)
+    await main_agent_session_service.append_event(session, system_event)
 
 
-def _maybe_store_custom_component_prompt(prompt: str, session: Session):
+async def _maybe_store_custom_component_prompt(prompt: str, session: Session):
     """
        Processes an input string. If the string is a JSON object with an 'id' and 'prompt'
        property, stores the prompt under the user:id in the state.
@@ -90,7 +89,7 @@ def _maybe_store_custom_component_prompt(prompt: str, session: Session):
                 actions=actions_with_update,
                 timestamp=current_time
             )
-            main_agent_session_service.append_event(session, system_event)
+            await main_agent_session_service.append_event(session, system_event)
             return data['prompt']
         else:
             return prompt
@@ -115,22 +114,23 @@ def _is_cache_hit(event: Event) -> bool:
 
 async def run_root_agent(user_id, prompt, styling_instructions):
     session_id = str(uuid.uuid4())
-    session = main_agent_session_service.create_session(
+    session = await main_agent_session_service.create_session(
         app_name=APP_NAME,
         user_id=user_id,
         session_id=session_id
     )
 
     main_agent_runner = Runner(
-        agent=await create_main_agent(),
+        agent=create_main_agent(),
         app_name=APP_NAME,
         session_service=main_agent_session_service
     )
 
-    _maybe_store_custom_component_prompt(prompt, session)
-    _store_hashed_prompt_to_state(prompt, session)
+    await _maybe_store_custom_component_prompt(prompt, session)
+    await _store_hashed_prompt_to_state(prompt, session)
+    await _store_styling_info_to_state(styling_instructions, session)
+
     _maybe_invalidate_cache(prompt)
-    _store_styling_info_to_state(styling_instructions, session)
 
     content = types.Content(role='user', parts=[types.Part(text=prompt)])
 
@@ -153,8 +153,9 @@ async def run_root_agent(user_id, prompt, styling_instructions):
     print(f"Runner created for agent '{main_agent_runner.agent.name}'.")
 
     # todo null checks
-    cache_decision_agent_output = main_agent_session_service.get_session(app_name=APP_NAME, user_id=user_id,
-                                                                         session_id=session_id).state.get(
+    reloaded_session = await main_agent_session_service.get_session(app_name=APP_NAME, user_id=user_id,
+                                                                         session_id=session_id)
+    cache_decision_agent_output = reloaded_session.state.get(
         'cache_decision_agent_output').strip('\n')
     if cache_decision_agent_output == 'CACHE':
         root_prompt = get_from_cache(ROOT_PROMPT)
@@ -166,7 +167,7 @@ async def run_root_agent(user_id, prompt, styling_instructions):
 
 async def run_style_extraction_agent(user_id, prompt):
     session_id = str(uuid.uuid4())
-    style_extraction_service.create_session(
+    await style_extraction_service.create_session(
         app_name=APP_NAME,
         user_id=user_id,
         session_id=session_id
