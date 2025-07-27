@@ -6,10 +6,10 @@ from google.genai.types import Content, Part
 from mawa.cache import is_cached, get_from_cache
 from mawa.constants import ROOT_PROMPT
 
-
 def load_from_cache(
     callback_context: CallbackContext, llm_request: LlmRequest
 ) -> Optional[LlmResponse]:
+    return None
     cache_decision_agent_output = callback_context.state.get('cache_decision_agent_output')
     if cache_decision_agent_output:
         cache_decision_agent_output = cache_decision_agent_output.strip('\n')
@@ -98,7 +98,6 @@ def inject_stored_component_ids(
 
     return None
 
-# todo taken from claude without reviewing it, needs to be reviewed and cleaned up
 def filter_component_keys(data_dict):
     """
     Filters keys starting with 'user:component' from a dictionary and formats them into a JSON string.

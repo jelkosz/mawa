@@ -1,31 +1,45 @@
+import os
+
 from diskcache import Cache
 import hashlib
 
-cache = Cache('/tmp/mawacache')
+cache_dir = os.getenv("CACHE_DIR")
+
+cache = None
+if cache_dir:
+    cache = Cache(cache_dir)
 
 def store_to_cache(key, value):
     """
     Stores a value in the file-based cache.
     """
-    cache.set(key_to_hash(key), value)
+    if cache:
+        cache.set(key_to_hash(key), value)
 
 def is_cached(key):
     """
     Checks if a key is present in the file-based cache.
     """
-    return key_to_hash(key) in cache
+    if cache:
+        return key_to_hash(key) in cache
+    else:
+        return False
 
 def get_from_cache(key):
     """
     Retrieves a value from the file-based cache.
     """
-    return cache.get(key_to_hash(key))\
+    if cache:
+        return cache.get(key_to_hash(key))
+    else:
+        return ""
 
 def clear_from_cache(key):
     """
     Removes a key-value pair from the file-based cache.
     """
-    cache.delete(key_to_hash(key))
+    if cache:
+        cache.delete(key_to_hash(key))
 
 def key_to_hash(key):
     """
