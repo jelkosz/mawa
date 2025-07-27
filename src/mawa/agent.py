@@ -8,19 +8,18 @@ from google.genai.types import GenerateContentConfig, ThinkingConfig
 from mcp import StdioServerParameters
 
 from mawa.callbacks import clear_technical_response, inject_stored_component_ids, load_from_cache
+from mawa.constants import STYLING_INSTRUCTIONS, CURRENT_PROMPT_HASH
 
 # TODOs:
 # - extract variables which are injected
-# - add security agent
-# - add evals
 # - add landing page with examples
 # - cleanup python parts of the code
 # - replace prints by logs (or just remove them if they are not giving value, lets check)
 
-STYLING_INSTRUCTIONS_SECTION = """
+STYLING_INSTRUCTIONS_SECTION = f"""
             ## Styling Instructions
                 - Never come up with your own colors/fonts or styles in general
-                - Always follow the following styling instructions: {styling_instructions}
+                - Always follow the following styling instructions: {{{STYLING_INSTRUCTIONS}}}
 """
 
 STRICT_AGENT_TEMPERATURE = 0.0
@@ -103,7 +102,7 @@ def _create_main_page_agent(default_session_variables: Optional[dict[str, str]])
                     - when the save button is clicked, then:
                        - the content of the editor will replace the content of the body->prompt from the content_part.
                        - make sure you add the actual text of editor to the content_part->body, not a javascript able to provide it.
-                       - make sure you always add 'invalidate_cache_key': '{{current_prompt_hash}}' part to the body.
+                       - make sure you always add 'invalidate_cache_key': '{{{CURRENT_PROMPT_HASH}}}' part to the body.
                        - make sure the body of the POST is always a valid json. For example: "{{'id': 'component_1_1', 'prompt': 'Generate me a fun fact about cats.', 'invalidate_cache_key': '{{current_prompt_hash}}'}}".
                        - the script will re-fetch the content if the content_part changed
                        - the dialog will be closed
@@ -137,7 +136,7 @@ def _create_main_page_agent(default_session_variables: Optional[dict[str, str]])
                                 headers: {{
                                     'Content-Type': 'application/json'
                                 }},
-                                body: JSON.stringify({{'id': componentId, 'prompt': newPrompt, 'invalidate_cache_key': '{{current_prompt_hash}}'}})
+                                body: JSON.stringify({{'id': componentId, 'prompt': newPrompt, 'invalidate_cache_key': '{{{CURRENT_PROMPT_HASH}}}'}})
                             }})
                             .then(res => res.text())
                             .then(html => {{
@@ -165,7 +164,7 @@ def _create_main_page_agent(default_session_variables: Optional[dict[str, str]])
                                 console.error('Error:', error);
                             }});
                         </script>
-                    - if the body is not specified, add the following text to it: "{{'id': the generated id for this component, 'prompt': 'Generate a simple div containing Hello from a div text inside', 'invalidate_cache_key': '{{current_prompt_hash}}'}}."
+                    - if the body is not specified, add the following text to it: "{{'id': the generated id for this component, 'prompt': 'Generate a simple div containing Hello from a div text inside', 'invalidate_cache_key': '{{{CURRENT_PROMPT_HASH}}}'}}."
             
                 ## Default Main Section Layout
                     - Refer to the "Instructions Provided by Users Per Component" section, to get the default body values per component ID. If this section is not present, use the following defaults:
@@ -176,7 +175,7 @@ def _create_main_page_agent(default_session_variables: Optional[dict[str, str]])
 {STYLING_INSTRUCTIONS_SECTION}
         """
 
-    # this replace is for tests where the current_prompt_hash is not stored in state but provided as a hardcoded value
+    # injects mock values for tests/adk web case
     if default_session_variables is not None:
         for key, value in default_session_variables.items():
             instructions = instructions.replace(key, value)

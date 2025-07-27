@@ -7,7 +7,7 @@ from google.genai import types
 import uuid
 from .agent import _create_style_extraction_agent, create_main_agent
 from .cache import store_to_cache, key_to_hash, clear_from_cache, get_from_cache, is_cached
-from .constants import ROOT_PROMPT
+from .constants import ROOT_PROMPT, STYLING_INSTRUCTIONS, CURRENT_PROMPT_HASH
 
 APP_NAME = "Table Football App"
 
@@ -27,7 +27,7 @@ async def _store_styling_info_to_state(instructions: str, session: Session):
 
     current_time = time.time()
     state_changes = {
-        f"styling_instructions": instructions
+        f"{STYLING_INSTRUCTIONS}": instructions
     }
     actions_with_update = EventActions(state_delta=state_changes)
     system_event = Event(
@@ -51,7 +51,7 @@ async def _store_hashed_prompt_to_state(prompt: str, session: Session):
 
     current_time = time.time()
     state_changes = {
-        f"current_prompt_hash": key_to_hash(prompt)
+        f"{CURRENT_PROMPT_HASH}": key_to_hash(prompt)
     }
     actions_with_update = EventActions(state_delta=state_changes)
     system_event = Event(
@@ -178,7 +178,7 @@ async def run_style_extraction_agent(user_id, prompt):
         session_service=style_extraction_service
     )
 
-    cache_key = f"styling_instructions {prompt}"
+    cache_key = f"{STYLING_INSTRUCTIONS} {prompt}"
     if is_cached(cache_key):
         return get_from_cache(cache_key)
 

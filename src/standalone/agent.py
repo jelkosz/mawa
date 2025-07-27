@@ -1,6 +1,7 @@
 from mawa.agent import create_main_agent
+from mawa.constants import STYLING_INSTRUCTIONS, CURRENT_PROMPT_HASH
 
 root_agent = create_main_agent({
-    "{current_prompt_hash}": "mock_root_prompt_hash",
-    "{styling_instructions}": "mock_styling_instructions"
+    f"{{{CURRENT_PROMPT_HASH}}}": "mock_root_prompt_hash",
+    f"""{{{STYLING_INSTRUCTIONS}}}""": "mock_styling_instructions"
 })
