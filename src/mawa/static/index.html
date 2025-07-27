@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi Agent Web App (MAWA)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+        :root {
+            --bg-color: #121212;
+            --container-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --accent-color: #8c7ae6;
+            --link-bg: #2d2d2d;
+            --link-hover-bg: #3c3c3c;
+            --border-radius: 12px;
+            --shadow-light: rgba(0, 0, 0, 0.25);
+            --shadow-dark: rgba(0, 0, 0, 0.5);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+            transition: background-color 0.4s ease;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background-color: var(--container-bg);
+            padding: 50px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 40px var(--shadow-dark), 0 5px 15px var(--shadow-light);
+            text-align: center;
+            animation: fadeIn 1s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 600;
+            color: var(--accent-color);
+            margin-bottom: 20px;
+            text-shadow: 0 2px 4px var(--shadow-dark);
+        }
+
+        p {
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 35px;
+            color: var(--text-color);
+        }
+
+        .links-heading {
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-color);
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .links-heading::after {
+            content: '';
+            display: block;
+            width: 60px;
+            height: 2px;
+            background: var(--accent-color);
+            margin: 10px auto 0;
+            border-radius: 2px;
+        }
+
+        .link-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .link-list a {
+            display: block;
+            background-color: var(--link-bg);
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 18px 25px;
+            border-radius: var(--border-radius);
+            font-weight: 600;
+            transition: transform 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 2px 10px var(--shadow-light);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .link-list a:hover {
+            transform: translateY(-5px);
+            background-color: var(--link-hover-bg);
+            box-shadow: 0 8px 25px var(--shadow-dark);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Multi Agent Web App (MAWA)</h1>
+    <p>
+        This page is here to give you some inspiration on how to use MAWA.
+    </p>
+    <div class="links-section">
+        <h2 class="links-heading">Example Links to be Used</h2>
+        <ul class="link-list">
+            <li><a href="http://localhost:8000/create a page in a dark moody style" target="_blank">http://localhost:8000/create a page in a dark moody style</a></li>
+            <li><a href="http://localhost:8000/create%20a%20page%20in%20a%20dark%20moody%20style.%20Keep%20the%20original%20components%20but%20add%20one%20more%20row%20of%20components%20to%20the%20bottom%20and%20in%20it%20two%20compoents%20next%20to%20each%20other" target="_blank">http://localhost:8000/create a page in a dark moody style. Keep the original components but add one more row of components to the bottom and in it two compoents next to each other</a></li>
+            <li><a href="#" target="_blank">Link to Project Three</a></li>
+        </ul>
+    </div>
+</div>
+
+</body>
+</html>

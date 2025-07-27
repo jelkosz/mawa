@@ -14,6 +14,12 @@ USER_NAME = "hardcoded_username"
 app = FastAPI()
 client = genai.Client()
 
+@app.get("/", response_class=HTMLResponse)
+async def serve_homepage():
+    with open("static/index.html", "r") as file:
+        html_content = file.read()
+    return HTMLResponse(content=html_content, status_code=200)
+
 @app.post("/api", response_class=HTMLResponse)
 async def api(request: Request):
     body = await request.body()

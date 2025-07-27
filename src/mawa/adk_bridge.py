@@ -112,6 +112,25 @@ def _is_cache_hit(event: Event) -> bool:
         event.custom_metadata['cache_response'] == True
 
 
+async def _wait_for_result(runner, user_id, session_id, prompt, additional_event_condition=None):
+    content = types.Content(role='user', parts=[types.Part(text=prompt)])
+
+    final_response_text = "No specific styling provided by the user."
+    async for event in runner.run_async(user_id=user_id, session_id=session_id,
+                                        new_message=content):
+        is_final = event.is_final_response()
+        if additional_event_condition:
+            is_final = is_final and additional_event_condition(event)
+
+        if is_final:
+            if event.content and event.content.parts:
+                final_response_text = event.content.parts[0].text
+            elif event.actions and event.actions.escalate:
+                final_response_text = f"Agent escalated: {event.error_message or 'No specific message.'}"
+            break
+    return final_response_text
+
+
 async def run_root_agent(user_id, prompt, styling_instructions):
     session_id = str(uuid.uuid4())
     session = await main_agent_session_service.create_session(
@@ -132,29 +151,17 @@ async def run_root_agent(user_id, prompt, styling_instructions):
 
     _maybe_invalidate_cache(prompt)
 
-    content = types.Content(role='user', parts=[types.Part(text=prompt)])
+    final_response_text = await _wait_for_result(main_agent_runner, user_id, session_id, prompt, lambda event: (
+            _is_cache_hit(event) or event.author in [
+        "component_page_merger_agent",
+        "main_page_agent",
+        "data_saver_agent",
+        "data_loader_agent"
+    ]
+    ))
 
-    final_response_text = "Agent did not produce a final response."
-    async for event in main_agent_runner.run_async(user_id=user_id, session_id=session_id, new_message=content):
-        print(
-            f"  [Event] Author: {event.author}, Type: {type(event).__name__}, Final: {event.is_final_response()}, Branch: {event.branch}, Content: {event.content}")
-
-        # todo remove the hardcoded list of returning agents
-        if event.is_final_response() and (
-                _is_cache_hit(event) or event.author in ["component_page_merger_agent", "main_page_agent",
-                                                         "data_saver_agent", "data_loader_agent"]):
-            if event.content and event.content.parts:
-                final_response_text = event.content.parts[0].text
-            elif event.actions and event.actions.escalate:
-                final_response_text = f"Agent escalated: {event.error_message or 'No specific message.'}"
-            break
-
-    print(f"<<< Agent Response: {final_response_text}")
-    print(f"Runner created for agent '{main_agent_runner.agent.name}'.")
-
-    # todo null checks
     reloaded_session = await main_agent_session_service.get_session(app_name=APP_NAME, user_id=user_id,
-                                                                         session_id=session_id)
+                                                                    session_id=session_id)
     cache_decision_agent_output = reloaded_session.state.get(
         'cache_decision_agent_output').strip('\n')
     if cache_decision_agent_output == 'CACHE':
@@ -182,17 +189,7 @@ async def run_style_extraction_agent(user_id, prompt):
     if is_cached(cache_key):
         return get_from_cache(cache_key)
 
-    content = types.Content(role='user', parts=[types.Part(text=prompt)])
-
-    final_response_text = "No specific styling provided by the user."
-    async for event in style_extraction_agent_runner.run_async(user_id=user_id, session_id=session_id,
-                                                               new_message=content):
-        if event.is_final_response():
-            if event.content and event.content.parts:
-                final_response_text = event.content.parts[0].text
-            elif event.actions and event.actions.escalate:
-                final_response_text = f"Agent escalated: {event.error_message or 'No specific message.'}"
-            break
+    final_response_text = await _wait_for_result(style_extraction_agent_runner, user_id, session_id, prompt)
 
     store_to_cache(cache_key, final_response_text)
     return final_response_text

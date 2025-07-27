@@ -1,3 +1,4 @@
+import json
 from typing import Optional
 
 from google.adk.agents.callback_context import CallbackContext
@@ -9,7 +10,6 @@ from mawa.constants import ROOT_PROMPT
 def load_from_cache(
     callback_context: CallbackContext, llm_request: LlmRequest
 ) -> Optional[LlmResponse]:
-    return None
     cache_decision_agent_output = callback_context.state.get('cache_decision_agent_output')
     if cache_decision_agent_output:
         cache_decision_agent_output = cache_decision_agent_output.strip('\n')
@@ -108,25 +108,17 @@ def filter_component_keys(data_dict):
     Returns:
         str: JSON string with componentId and bodyValue for each component
     """
-    import json
 
-    # Initialize an empty list to store the component entries
     components = []
 
-    # Iterate through the dictionary
     for key, value in data_dict.items():
-        # Check if key starts with 'user:component'
         if key.startswith('user:component'):
-            # Extract the component name (remove 'user:' prefix)
             component_name = key.replace('user:', '')
-
-            # Add entry to the components list
             components.append({
                 'componentId': component_name,
                 'bodyValue': value
             })
 
-    # Convert the list to a JSON string
     result = json.dumps(components)
 
     return result

@@ -11,10 +11,7 @@ from mawa.callbacks import clear_technical_response, inject_stored_component_ids
 from mawa.constants import STYLING_INSTRUCTIONS, CURRENT_PROMPT_HASH
 
 # TODOs:
-# - extract variables which are injected
 # - add landing page with examples
-# - cleanup python parts of the code
-# - replace prints by logs (or just remove them if they are not giving value, lets check)
 
 STYLING_INSTRUCTIONS_SECTION = f"""
             ## Styling Instructions
@@ -468,8 +465,6 @@ def _create_component_page_agent():
 
 
 def _create_data_saver_agent():
-    # tools = await load_mcp_tools()
-
     return Agent(
         name="data_saver_agent",
         model=NOT_THINKING_MODEL,
