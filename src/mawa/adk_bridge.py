@@ -173,7 +173,7 @@ async def run_style_extraction_agent(user_id, prompt):
         session_id=session_id
     )
     style_extraction_agent_runner = Runner(
-        agent=await _create_style_extraction_agent(),
+        agent=_create_style_extraction_agent(),
         app_name=APP_NAME,
         session_service=style_extraction_service
     )

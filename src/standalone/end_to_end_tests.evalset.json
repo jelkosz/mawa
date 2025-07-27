@@ -1,0 +1,342 @@
+{
+  "eval_set_id": "end_to_end_tests",
+  "name": "end_to_end_tests",
+  "description": null,
+  "eval_cases": [
+    {
+      "eval_id": "read_write_match",
+      "conversation": [
+        {
+          "invocation_id": "e-b86987f5-8214-4ae5-ba14-6a7c70d62bfa",
+          "user_content": {
+            "parts": [
+              {
+                "video_metadata": null,
+                "thought": null,
+                "inline_data": null,
+                "file_data": null,
+                "thought_signature": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "function_call": null,
+                "function_response": null,
+                "text": "create a new match: {\n                    \"id\": \"test_id_1\",\n                    \"player1\": \"Test Player1\"\n                    \"player1_score\": \"10\",\n                    \"player2\": \"Other Test Player\",\n                    \"player2_score\": \"5\",\n                }"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "video_metadata": null,
+                "thought": null,
+                "inline_data": null,
+                "file_data": null,
+                "thought_signature": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "function_call": null,
+                "function_response": null,
+                "text": "\n{\"status\": \"error\", \"message\": \"No league information for the league: 'some_league'\"}\n"
+              }
+            ],
+            "role": null
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "id": "adk-ce2d5e8d-861e-4797-b777-9d8344a95af3",
+                "args": {
+                  "agent_name": "data_saver_agent"
+                },
+                "name": "transfer_to_agent"
+              },
+              {
+                "id": "adk-25e02440-141f-4f11-902b-cc563337f9f6",
+                "args": {
+                  "player1": "Test Player1",
+                  "player1_score": 10,
+                  "league": "some_league",
+                  "player2": "Other Test Player",
+                  "player2_score": 5
+                },
+                "name": "add_match"
+              }
+            ],
+            "intermediate_responses": [
+              [
+                "cache_decision_agent",
+                [
+                  {
+                    "video_metadata": null,
+                    "thought": null,
+                    "inline_data": null,
+                    "file_data": null,
+                    "thought_signature": null,
+                    "code_execution_result": null,
+                    "executable_code": null,
+                    "function_call": null,
+                    "function_response": null,
+                    "text": "LIVE\n"
+                  }
+                ]
+              ]
+            ]
+          },
+          "creation_timestamp": 1753621265.586218
+        },
+        {
+          "invocation_id": "e-ae8e0fd9-3cf3-45eb-b91a-b9b506cb2349",
+          "user_content": {
+            "parts": [
+              {
+                "video_metadata": null,
+                "thought": null,
+                "inline_data": null,
+                "file_data": null,
+                "thought_signature": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "function_call": null,
+                "function_response": null,
+                "text": "create a new match in Brno league: {\n                    \"id\": \"test_id_1\",\n                    \"player1\": \"Test Player1\"\n                    \"player1_score\": \"10\",\n                    \"player2\": \"Other Test Player\",\n                    \"player2_score\": \"5\",\n                }"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "video_metadata": null,
+                "thought": null,
+                "inline_data": null,
+                "file_data": null,
+                "thought_signature": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "function_call": null,
+                "function_response": null,
+                "text": "\n{\"status\": \"success\"}\n"
+              }
+            ],
+            "role": null
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "id": "adk-09adb5d0-9ecd-4e02-904e-3f8fd906823c",
+                "args": {
+                  "agent_name": "data_saver_agent"
+                },
+                "name": "transfer_to_agent"
+              },
+              {
+                "id": "adk-e2aaf528-00c0-4f89-b89a-762eae210385",
+                "args": {
+                  "player2": "Other Test Player",
+                  "player2_score": 5,
+                  "player1_score": 10,
+                  "player1": "Test Player1",
+                  "league": "Brno"
+                },
+                "name": "add_match"
+              }
+            ],
+            "intermediate_responses": [
+              [
+                "cache_decision_agent",
+                [
+                  {
+                    "video_metadata": null,
+                    "thought": null,
+                    "inline_data": null,
+                    "file_data": null,
+                    "thought_signature": null,
+                    "code_execution_result": null,
+                    "executable_code": null,
+                    "function_call": null,
+                    "function_response": null,
+                    "text": "LIVE\n"
+                  }
+                ]
+              ]
+            ]
+          },
+          "creation_timestamp": 1753621277.461438
+        },
+        {
+          "invocation_id": "e-1d8b8db8-46a3-4656-b427-db10ffc933c2",
+          "user_content": {
+            "parts": [
+              {
+                "video_metadata": null,
+                "thought": null,
+                "inline_data": null,
+                "file_data": null,
+                "thought_signature": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "function_call": null,
+                "function_response": null,
+                "text": "get matches from the brno league"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "video_metadata": null,
+                "thought": null,
+                "inline_data": null,
+                "file_data": null,
+                "thought_signature": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "function_call": null,
+                "function_response": null,
+                "text": "Here's a summary of the matches from the Brno league:\n\nThe Brno league has 10 matches.  Several matches feature \"Test Player1\" playing against \"Other Test Player\", with \"Test Player1\" consistently scoring 10 points and \"Other Test Player\" scoring 5 points.  Other matches include players such as \"Jahodovy Knedlik\", \"Nakladany Hermelin\", \"Tom\", and \"Hovezi Gulas\" with varying scores."
+              }
+            ],
+            "role": null
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "id": "adk-9179800f-02ab-4f0c-b8e4-bf9a171ee8d5",
+                "args": {
+                  "agent_name": "data_loader_agent"
+                },
+                "name": "transfer_to_agent"
+              },
+              {
+                "id": "adk-864db040-fecb-458b-837f-5f5aa536dafd",
+                "args": {
+                  "league": "Brno"
+                },
+                "name": "get_matches"
+              }
+            ],
+            "intermediate_responses": [
+              [
+                "cache_decision_agent",
+                [
+                  {
+                    "video_metadata": null,
+                    "thought": null,
+                    "inline_data": null,
+                    "file_data": null,
+                    "thought_signature": null,
+                    "code_execution_result": null,
+                    "executable_code": null,
+                    "function_call": null,
+                    "function_response": null,
+                    "text": "CACHE\n"
+                  }
+                ]
+              ]
+            ]
+          },
+          "creation_timestamp": 1753621287.422279
+        }
+      ],
+      "session_input": {
+        "app_name": "standalone",
+        "user_id": "user",
+        "state": {
+          "current_prompt_hash": "",
+          "styling_instructions": "",
+          "tabular_data_visualization_agent_output": "",
+          "chart_data_visualization_agent_output": "",
+          "add_data_agent_output": ""
+        }
+      },
+      "creation_timestamp": 1753621313.0952384
+    },
+    {
+      "eval_id": "generate_main_page",
+      "conversation": [
+        {
+          "invocation_id": "e-0206c067-f9ed-4e00-b21e-bc7978f3b64e",
+          "user_content": {
+            "parts": [
+              {
+                "video_metadata": null,
+                "thought": null,
+                "inline_data": null,
+                "file_data": null,
+                "thought_signature": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "function_call": null,
+                "function_response": null,
+                "text": "create a page in a dark moody style"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "video_metadata": null,
+                "thought": null,
+                "inline_data": null,
+                "file_data": null,
+                "thought_signature": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "function_call": null,
+                "function_response": null,
+                "text": "\n<!DOCTYPE html>\n<html>\n<head>\n    <title>Dynamic Table Football</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            margin: 0;\n            padding: 0;\n            background-color: #222;\n            color: #eee;\n        }\n\n        .masthead {\n            background-color: #333;\n            color: #fff;\n            padding: 10px 20px;\n            display: flex;\n            justify-content: space-between;\n            align-items: center;\n        }\n\n        .masthead h1 {\n            margin: 0;\n            font-size: 24px;\n        }\n\n        .logout-button {\n            background-color: #555;\n            color: #fff;\n            border: none;\n            padding: 8px 12px;\n            cursor: pointer;\n            border-radius: 4px;\n        }\n\n        .main-section {\n            padding: 20px;\n        }\n\n        .component {\n            background-color: #444;\n            border-radius: 8px;\n            margin-bottom: 20px;\n            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);\n        }\n\n        .component-header {\n            display: flex;\n            justify-content: flex-end;\n            padding: 10px;\n            border-bottom: 1px solid #555;\n        }\n\n        .edit-icon {\n            cursor: pointer;\n            padding: 5px;\n        }\n\n        .edit-icon:hover {\n            cursor: pointer;\n        }\n\n        .component-content {\n            padding: 10px;\n        }\n\n        .edit-dialog {\n            display: none;\n            position: fixed;\n            top: 0;\n            left: 0;\n            width: 100%;\n            height: 100%;\n            background-color: rgba(0, 0, 0, 0.5);\n            z-index: 10;\n        }\n\n        .edit-dialog-content {\n            position: absolute;\n            top: 50%;\n            left: 50%;\n            transform: translate(-50%, -50%);\n            background-color: #333;\n            padding: 20px;\n            border-radius: 8px;\n            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);\n            width: 80%;\n            max-width: 600px;\n        }\n\n        .edit-dialog textarea {\n            width: 100%;\n            height: 150px;\n            margin-bottom: 10px;\n            background-color: #555;\n            color: #eee;\n            border: 1px solid #777;\n            border-radius: 4px;\n            padding: 5px;\n        }\n\n        .edit-dialog-buttons {\n            text-align: right;\n        }\n\n        .edit-dialog-buttons button {\n            background-color: #555;\n            color: #fff;\n            border: none;\n            padding: 8px 12px;\n            cursor: pointer;\n            border-radius: 4px;\n            margin-left: 10px;\n        }\n\n        .loading-message {\n            text-align: center;\n            font-style: italic;\n            color: #aaa;\n        }\n    </style>\n</head>\n<body>\n    <div class=\"masthead\">\n        <h1>Dynamic Table Football</h1>\n        <button class=\"logout-button\">Logout</button>\n    </div>\n    <div class=\"main-section\">\n        <div class=\"component\">\n            <div class=\"component-header\">\n                <div class=\"edit-icon\" onclick=\"document.getElementById('editDialog_5789').style.display='block';\" style=\"cursor: pointer;\">&#9998;</div>\n            </div>\n            <div class=\"component-content\">\n                <div id=\"detail-component-id-1\" class=\"loading-message\">Loading Component...</div>\n                <script>\n                   function loadHTMLWithScripts(html, targetId) {\n                        const targetElement = document.getElementById(targetId);\n                        const parser = new DOMParser();\n                        const doc = parser.parseFromString(html, 'text/html');\n                        const scripts = Array.from(doc.querySelectorAll('script'));\n                        scripts.forEach(script => script.remove());\n                        targetElement.innerHTML = doc.body.innerHTML;\n                        scripts.forEach(oldScript => {\n                            const newScript = document.createElement('script');\n                            Array.from(oldScript.attributes).forEach(attr => {\n                                newScript.setAttribute(attr.name, attr.value);\n                            });\n                            newScript.textContent = oldScript.textContent;\n                            document.body.appendChild(newScript);\n                        });\n                    }\n                  function updateComponent(componentId, newPrompt, targetDivId) {\n                    document.getElementById(targetDivId).innerHTML = '<div class=\"loading-message\">Reloading component...</div>';\n                    fetch('/api', {\n                        method: 'POST',\n                        headers: {\n                            'Content-Type': 'application/json'\n                        },\n                        body: JSON.stringify({'id': componentId, 'prompt': newPrompt, 'invalidate_cache_key': 'mock_root_prompt_hash'})\n                    })\n                    .then(res => res.text())\n                    .then(html => {\n                        loadHTMLWithScripts(html, targetDivId);\n                    })\n                    .catch(error => {\n                        document.getElementById(targetDivId).innerHTML = '<div style=\"color: red;\">Error loading component.</div>';\n                        console.error('Error:', error);\n                    });\n                }\n                // Initial load\n                  fetch('/api', {\n                        method: 'POST',\n                        headers: {\n                            'Content-Type': 'application/json'\n                        },\n                        body: JSON.stringify({'id': 'component_1_1', 'prompt': 'Generate me a component with a table of matches from the brno league containing the name of both players and their scores. First two columns are the player names, last two the scores. Make sure to add an add new match component.'})\n                    })\n                    .then(res => res.text())\n                    .then(html => {\n                        loadHTMLWithScripts(html, 'detail-component-id-1');\n                    })\n                    .catch(error => {\n                        document.getElementById('detail-component-id-1').innerHTML = '<div style=\"color: red;\">Error loading component.</div>';\n                        console.error('Error:', error);\n                    });\n                </script>\n            </div>\n        </div>\n        <div class=\"component\">\n            <div class=\"component-header\">\n                <div class=\"edit-icon\" onclick=\"document.getElementById('editDialog_5790').style.display='block';\" style=\"cursor: pointer;\">&#9998;</div>\n            </div>\n            <div class=\"component-content\">\n                <div id=\"detail-component-id-2\" class=\"loading-message\">Loading Component...</div>\n                <script>\n                   function loadHTMLWithScripts(html, targetId) {\n                        const targetElement = document.getElementById(targetId);\n                        const parser = new DOMParser();\n                        const doc = parser.parseFromString(html, 'text/html');\n                        const scripts = Array.from(doc.querySelectorAll('script'));\n                        scripts.forEach(script => script.remove());\n                        targetElement.innerHTML = doc.body.innerHTML;\n                        scripts.forEach(oldScript => {\n                            const newScript = document.createElement('script');\n                            Array.from(oldScript.attributes).forEach(attr => {\n                                newScript.setAttribute(attr.name, attr.value);\n                            });\n                            newScript.textContent = oldScript.textContent;\n                            document.body.appendChild(newScript);\n                        });\n                    }\n                  function updateComponent(componentId, newPrompt, targetDivId) {\n                    document.getElementById(targetDivId).innerHTML = '<div class=\"loading-message\">Reloading component...</div>';\n                    fetch('/api', {\n                        method: 'POST',\n                        headers: {\n                            'Content-Type': 'application/json'\n                        },\n                        body: JSON.stringify({'id': componentId, 'prompt': newPrompt, 'invalidate_cache_key': 'mock_root_prompt_hash'})\n                    })\n                    .then(res => res.text())\n                    .then(html => {\n                        loadHTMLWithScripts(html, targetDivId);\n                    })\n                    .catch(error => {\n                        document.getElementById(targetDivId).innerHTML = '<div style=\"color: red;\">Error loading component.</div>';\n                        console.error('Error:', error);\n                    });\n                }\n                // Initial load\n                  fetch('/api', {\n                        method: 'POST',\n                        headers: {\n                            'Content-Type': 'application/json'\n                        },\n                        body: JSON.stringify({'id': 'component_2_1', 'prompt': 'Generate me a component with a pie chart loading data from the matches from Brno league and visualizing the sum of scores per player. Post process the raw result from the get_matches tool so that: You will always sum up all the scores per player. You will never return the same player more than once.'})\n                    })\n                    .then(res => res.text())\n                    .then(html => {\n                        loadHTMLWithScripts(html, 'detail-component-id-2');\n                    })\n                    .catch(error => {\n                        document.getElementById('detail-component-id-2').innerHTML = '<div style=\"color: red;\">Error loading component.</div>';\n                        console.error('Error:', error);\n                    });\n                </script>\n            </div>\n        </div>\n    </div>\n\n    <div id=\"editDialog_5789\" class=\"edit-dialog\">\n        <div class=\"edit-dialog-content\">\n            <textarea id=\"editor_5789\">Generate me a component with a table of matches from the brno league containing the name of both players and their scores. First two columns are the player names, last two the scores. Make sure to add an add new match component.</textarea>\n            <div class=\"edit-dialog-buttons\">\n                <button onclick=\"\n                    var newPrompt = document.getElementById('editor_5789').value;\n                    updateComponent('component_1_1', newPrompt, 'detail-component-id-1');\n                    document.getElementById('editDialog_5789').style.display='none';\n                \">Save</button>\n                <button onclick=\"document.getElementById('editDialog_5789').style.display='none';\">Cancel</button>\n            </div>\n        </div>\n    </div>\n\n    <div id=\"editDialog_5790\" class=\"edit-dialog\">\n        <div class=\"edit-dialog-content\">\n            <textarea id=\"editor_5790\">Generate me a component with a pie chart loading data from the matches from Brno league and visualizing the sum of scores per player. Post process the raw result from the get_matches tool so that: You will always sum up all the scores per player. You will never return the same player more than once.</textarea>\n            <div class=\"edit-dialog-buttons\">\n                <button onclick=\"\n                    var newPrompt = document.getElementById('editor_5790').value;\n                    updateComponent('component_2_1', newPrompt, 'detail-component-id-2');\n                    document.getElementById('editDialog_5790').style.display='none';\n                \">Save</button>\n                <button onclick=\"document.getElementById('editDialog_5790').style.display='none';\">Cancel</button>\n            </div>\n        </div>\n    </div>\n</body>\n</html>\n"
+              }
+            ],
+            "role": null
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "id": "adk-60f57e82-976d-4ef8-a2d7-4e6a45f9fdde",
+                "args": {
+                  "agent_name": "main_page_agent"
+                },
+                "name": "transfer_to_agent"
+              }
+            ],
+            "intermediate_responses": [
+              [
+                "cache_decision_agent",
+                [
+                  {
+                    "video_metadata": null,
+                    "thought": null,
+                    "inline_data": null,
+                    "file_data": null,
+                    "thought_signature": null,
+                    "code_execution_result": null,
+                    "executable_code": null,
+                    "function_call": null,
+                    "function_response": null,
+                    "text": "CACHE\n"
+                  }
+                ]
+              ]
+            ]
+          },
+          "creation_timestamp": 1753623387.308786
+        }
+      ],
+      "session_input": {
+        "app_name": "standalone",
+        "user_id": "user",
+        "state": {
+          "styling_instructions": "",
+          "tabular_data_visualization_agent_output": "",
+          "chart_data_visualization_agent_output": "",
+          "add_data_agent_output": ""
+        }
+      },
+      "creation_timestamp": 1753623480.4947982
+    }
+  ],
+  "creation_timestamp": 1753532976.3645685
+}

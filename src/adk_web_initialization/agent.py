@@ -1,3 +1,0 @@
-from adk_web_initialization.adk_web_agent_definitions import create_adk_web_root_agent
-
-root_agent = create_adk_web_root_agent()

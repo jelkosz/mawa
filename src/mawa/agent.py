@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 from google.adk.agents import Agent, ParallelAgent, SequentialAgent
 from google.adk.planners import BuiltInPlanner
@@ -68,19 +69,8 @@ def _create_style_extraction_agent():
         ),
     )
 
-
-def _create_main_page_agent():
-    return Agent(
-        name="main_page_agent",
-        model="gemini-2.0-flash",
-        generate_content_config=GenerateContentConfig(
-            temperature=STRICT_AGENT_TEMPERATURE,
-        ),
-        description=(
-            "Agent to generate the main html page of the document."
-        ),
-        instruction=(
-            f"""
+def _create_main_page_agent(default_session_variables: Optional[dict[str, str]]):
+    instructions = f"""
             You are an agent which generates a simple HTML page. Always generate a HTML page with head and body.
             Your output will be directly interpreted by a browser so don't include any explanation or any additional text around the HTML content.
             Do add additional components based on the user prompt.
@@ -185,6 +175,23 @@ def _create_main_page_agent():
 
 {STYLING_INSTRUCTIONS_SECTION}
         """
+
+    # this replace is for tests where the current_prompt_hash is not stored in state but provided as a hardcoded value
+    if default_session_variables is not None:
+        for key, value in default_session_variables.items():
+            instructions = instructions.replace(key, value)
+
+    return Agent(
+        name="main_page_agent",
+        model="gemini-2.0-flash",
+        generate_content_config=GenerateContentConfig(
+            temperature=STRICT_AGENT_TEMPERATURE,
+        ),
+        description=(
+            "Agent to generate the main html page of the document."
+        ),
+        instruction=(
+            instructions
         ),
         before_model_callback=inject_stored_component_ids,
         after_model_callback=clear_technical_response,
@@ -502,7 +509,7 @@ def _create_data_saver_agent():
     )
 
 
-def _create_root_agent():
+def _create_root_agent(default_session_variables: Optional[dict[str, str]]):
     return Agent(
         name="generic_webpage_root_agent",
         model="gemini-2.0-flash",
@@ -522,7 +529,7 @@ def _create_root_agent():
             """
         ),
         sub_agents=[
-            _create_main_page_agent(),
+            _create_main_page_agent(default_session_variables),
             _create_component_page_agent(),
             _create_data_loader_agent(),
             _create_data_saver_agent(),
@@ -556,13 +563,12 @@ def _create_cache_decision_agent():
         output_key="cache_decision_agent_output"
     )
 
-
-def create_main_agent():
+def create_main_agent(default_session_variables: Optional[dict[str, str]] = None):
     return SequentialAgent(
         name="main_agent",
         sub_agents=[
             _create_cache_decision_agent(),
-            _create_root_agent()
+            _create_root_agent(default_session_variables)
         ],
         description="Decides if to return the result from cache or live. Than proceeds to load or calculate the result."
     )
