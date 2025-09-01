@@ -8,6 +8,7 @@ import uuid
 from .agent import _create_style_extraction_agent, create_main_agent
 from .cache import store_to_cache, key_to_hash, clear_from_cache, get_from_cache, is_cached
 from .constants import ROOT_PROMPT, STYLING_INSTRUCTIONS, CURRENT_PROMPT_HASH
+from .utils import _maybe_extract_component_id_from_prompt
 
 APP_NAME = "Table Football App"
 
@@ -96,12 +97,11 @@ async def _maybe_store_custom_component_prompt(prompt: str, session: Session):
     except (ValueError, SyntaxError, TypeError):
         return prompt
 
-
-def _maybe_invalidate_cache(prompt: str):
+def _maybe_invalidate_cache(cache_key, prompt: str):
     try:
         data = ast.literal_eval(prompt)
         if isinstance(data, dict) and 'invalidate_cache_key' in data:
-            clear_from_cache(data['invalidate_cache_key'])
+            clear_from_cache(cache_key)
     except (ValueError, SyntaxError, TypeError):
         # it is an OK state if the prompt can not be parsed
         pass
@@ -132,6 +132,7 @@ async def _wait_for_result(runner, user_id, session_id, prompt, additional_event
 
 
 async def run_root_agent(user_id, prompt, styling_instructions):
+    root_prompt = get_from_cache(ROOT_PROMPT)
     session_id = str(uuid.uuid4())
     session = await main_agent_session_service.create_session(
         app_name=APP_NAME,
@@ -146,10 +147,10 @@ async def run_root_agent(user_id, prompt, styling_instructions):
     )
 
     await _maybe_store_custom_component_prompt(prompt, session)
-    await _store_hashed_prompt_to_state(prompt, session)
+    await _store_hashed_prompt_to_state(root_prompt + _maybe_extract_component_id_from_prompt(prompt), session)
     await _store_styling_info_to_state(styling_instructions, session)
 
-    _maybe_invalidate_cache(prompt)
+    _maybe_invalidate_cache(root_prompt + _maybe_extract_component_id_from_prompt(prompt), prompt)
 
     final_response_text = await _wait_for_result(main_agent_runner, user_id, session_id, prompt, lambda event: (
             _is_cache_hit(event) or event.author in [
@@ -165,9 +166,9 @@ async def run_root_agent(user_id, prompt, styling_instructions):
     cache_decision_agent_output = reloaded_session.state.get(
         'cache_decision_agent_output').strip('\n')
     if cache_decision_agent_output == 'CACHE':
-        root_prompt = get_from_cache(ROOT_PROMPT)
+
         # this combination is used to make sure that different styling of the component will be cached separately
-        cache_key = root_prompt + prompt
+        cache_key = root_prompt + _maybe_extract_component_id_from_prompt(prompt)
         store_to_cache(cache_key, final_response_text)
     return final_response_text
 
